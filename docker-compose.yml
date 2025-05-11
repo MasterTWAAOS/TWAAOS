@@ -17,6 +17,20 @@ services:
       - db
     restart: always
 
+  flask:
+    build:
+      context: .
+      dockerfile: ./docker/flask/Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend/flask:/app
+    environment:
+      - FASTAPI_BASE_URL=http://api:8000
+    depends_on:
+      - api
+    restart: always
+
   db:
     image: postgres:13
     volumes:

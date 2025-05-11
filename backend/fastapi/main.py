@@ -12,6 +12,7 @@ from controllers import room_controller
 from controllers import schedule_controller
 from controllers import notification_controller
 from controllers import excel_template_controller
+from controllers import sync_controller
 
 from models.user import Base
 from config.database import engine
@@ -54,6 +55,7 @@ app.include_router(room_controller.router)
 app.include_router(schedule_controller.router)
 app.include_router(notification_controller.router)
 app.include_router(excel_template_controller.router)
+app.include_router(sync_controller.router)
 
 # Root endpoint
 @app.get("/", tags=["root"], summary="Root endpoint", description="Returns a welcome message for the API")

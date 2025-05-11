@@ -45,6 +45,31 @@ def get_user(
         )
     return user
 
+@router.get("/email/{email}", response_model=UserResponse, summary="Get user by email", description="Retrieve a specific user by their email address")
+@inject
+def get_user_by_email(
+    email: str, 
+    service: IUserService = Depends(Provide[Container.user_service])
+):
+    """Get a specific user by email address.
+    
+    Args:
+        email (str): The email of the user to retrieve
+        
+    Returns:
+        UserResponse: The user details
+        
+    Raises:
+        HTTPException: If the user is not found
+    """
+    user = service.get_user_by_email(email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with email {email} not found"
+        )
+    return user
+
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED, summary="Create new user", description="Create a new user in the system")
 @inject
 def create_user(
