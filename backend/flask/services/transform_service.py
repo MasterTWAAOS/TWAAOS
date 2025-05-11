@@ -10,12 +10,12 @@ def transform_groups(groups):
     
     for group in groups:
         # Skip any groups with missing required fields
-        if not group.get("groupName"):
+        if not group.get("name"):
             continue
             
         # Create a new dict with only the fields we need
         group_data = {
-            "name": group.get("groupName"),
+            "name": group.get("name"),
             "studyYear": int(group.get("studyYear") or 1),
             "specializationShortName": group.get("specializationShortName") or ""
         }

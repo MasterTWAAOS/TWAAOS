@@ -31,6 +31,23 @@ services:
       - api
     restart: always
 
+  frontend:
+    build:
+      context: .
+      dockerfile: ./docker/frontend/Dockerfile
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VUE_APP_API_URL=http://api:8000
+      - VUE_APP_FLASK_URL=http://flask:5000
+    depends_on:
+      - api
+      - flask
+    restart: always
+
   db:
     image: postgres:13
     volumes:

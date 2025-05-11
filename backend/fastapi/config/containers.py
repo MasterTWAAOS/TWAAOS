@@ -27,6 +27,7 @@ from services.room_service import RoomService
 from services.schedule_service import ScheduleService
 from services.notification_service import NotificationService
 from services.excel_template_service import ExcelTemplateService
+from services.auth_service import AuthService
 
 # Service interface imports
 from services.abstract.user_service_interface import IUserService
@@ -36,6 +37,7 @@ from services.abstract.room_service_interface import IRoomService
 from services.abstract.schedule_service_interface import IScheduleService
 from services.abstract.notification_service_interface import INotificationService
 from services.abstract.excel_template_service_interface import IExcelTemplateService
+from services.abstract.auth_service_interface import IAuthService
 
 from config.database_provider import get_db_session
 
@@ -131,4 +133,10 @@ class Container(containers.DeclarativeContainer):
     excel_template_service = providers.Factory(
         ExcelTemplateService,
         template_repository=excel_template_repository
+    )
+    
+    auth_service = providers.Factory(
+        AuthService,
+        user_repository=user_repository,
+        db=db
     )
