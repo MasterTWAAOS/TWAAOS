@@ -26,3 +26,12 @@ class IUserRepository(ABC):
     @abstractmethod
     def delete(self, user_id: int) -> bool:
         pass
+
+    @abstractmethod
+    def delete_all(self) -> int:
+        """Delete all users from the database.
+        
+        Returns:
+            int: The number of users deleted
+        """
+        pass

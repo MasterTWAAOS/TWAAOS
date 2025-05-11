@@ -26,3 +26,12 @@ class IRoomService(ABC):
     @abstractmethod
     def delete_room(self, room_id: int) -> bool:
         pass
+        
+    @abstractmethod
+    def delete_all_rooms(self) -> int:
+        """Delete all rooms from the database.
+        
+        Returns:
+            int: The number of rooms deleted
+        """
+        pass

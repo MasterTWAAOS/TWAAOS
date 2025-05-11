@@ -35,3 +35,14 @@ class UserRepository(IUserRepository):
             self.db.commit()
             return True
         return False
+        
+    def delete_all(self) -> int:
+        """Delete all users from the database.
+        
+        Returns:
+            int: The number of users deleted
+        """
+        count = self.db.query(User).count()
+        self.db.query(User).delete()
+        self.db.commit()
+        return count

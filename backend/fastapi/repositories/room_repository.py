@@ -35,3 +35,14 @@ class RoomRepository(IRoomRepository):
             self.db.commit()
             return True
         return False
+        
+    def delete_all(self) -> int:
+        """Delete all rooms from the database.
+        
+        Returns:
+            int: The number of rooms deleted
+        """
+        count = self.db.query(Room).count()
+        self.db.query(Room).delete()
+        self.db.commit()
+        return count

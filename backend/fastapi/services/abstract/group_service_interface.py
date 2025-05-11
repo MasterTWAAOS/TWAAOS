@@ -22,3 +22,12 @@ class IGroupService(ABC):
     @abstractmethod
     def delete_group(self, group_id: int) -> bool:
         pass
+        
+    @abstractmethod
+    def delete_all_groups(self) -> int:
+        """Delete all groups from the database.
+        
+        Returns:
+            int: The number of groups deleted
+        """
+        pass

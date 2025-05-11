@@ -40,3 +40,14 @@ class GroupRepository(IGroupRepository):
             self.db.commit()
             return True
         return False
+        
+    def delete_all(self) -> int:
+        """Delete all groups from the database.
+        
+        Returns:
+            int: The number of groups deleted
+        """
+        count = self.db.query(Group).count()
+        self.db.query(Group).delete()
+        self.db.commit()
+        return count

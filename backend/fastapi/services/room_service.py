@@ -60,3 +60,11 @@ class RoomService(IRoomService):
 
     def delete_room(self, room_id: int) -> bool:
         return self.room_repository.delete(room_id)
+        
+    def delete_all_rooms(self) -> int:
+        """Delete all rooms from the database.
+        
+        Returns:
+            int: The number of rooms deleted
+        """
+        return self.room_repository.delete_all()

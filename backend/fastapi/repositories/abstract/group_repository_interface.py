@@ -26,3 +26,12 @@ class IGroupRepository(ABC):
     @abstractmethod
     def delete(self, group_id: int) -> bool:
         pass
+        
+    @abstractmethod
+    def delete_all(self) -> int:
+        """Delete all groups from the database.
+        
+        Returns:
+            int: The number of groups deleted
+        """
+        pass

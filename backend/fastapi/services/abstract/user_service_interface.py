@@ -31,3 +31,12 @@ class IUserService(ABC):
     @abstractmethod
     def delete_user(self, user_id: int) -> bool:
         pass
+        
+    @abstractmethod
+    def delete_all_users(self) -> int:
+        """Delete all users from the database.
+        
+        Returns:
+            int: The number of users deleted
+        """
+        pass

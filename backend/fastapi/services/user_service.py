@@ -136,3 +136,11 @@ class UserService(IUserService):
 
     def delete_user(self, user_id: int) -> bool:
         return self.user_repository.delete(user_id)
+        
+    def delete_all_users(self) -> int:
+        """Delete all users from the database.
+        
+        Returns:
+            int: The number of users deleted
+        """
+        return self.user_repository.delete_all()

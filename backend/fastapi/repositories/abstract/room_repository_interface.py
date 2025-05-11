@@ -26,3 +26,12 @@ class IRoomRepository(ABC):
     @abstractmethod
     def delete(self, room_id: int) -> bool:
         pass
+        
+    @abstractmethod
+    def delete_all(self) -> int:
+        """Delete all rooms from the database.
+        
+        Returns:
+            int: The number of rooms deleted
+        """
+        pass

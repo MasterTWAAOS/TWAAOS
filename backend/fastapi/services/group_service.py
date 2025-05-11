@@ -50,3 +50,11 @@ class GroupService(IGroupService):
 
     def delete_group(self, group_id: int) -> bool:
         return self.group_repository.delete(group_id)
+        
+    def delete_all_groups(self) -> int:
+        """Delete all groups from the database.
+        
+        Returns:
+            int: The number of groups deleted
+        """
+        return self.group_repository.delete_all()
