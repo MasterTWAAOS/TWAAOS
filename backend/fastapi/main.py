@@ -4,7 +4,15 @@ from fastapi.openapi.utils import get_openapi
 import uvicorn
 import logging
 
+# Import all controllers
 from controllers import user_controller
+from controllers import group_controller
+from controllers import subject_controller
+from controllers import room_controller
+from controllers import schedule_controller
+from controllers import notification_controller
+from controllers import excel_template_controller
+
 from models.user import Base
 from config.database import engine
 from config.containers import Container
@@ -40,6 +48,12 @@ app.add_middleware(
 
 # Include routers
 app.include_router(user_controller.router)
+app.include_router(group_controller.router)
+app.include_router(subject_controller.router)
+app.include_router(room_controller.router)
+app.include_router(schedule_controller.router)
+app.include_router(notification_controller.router)
+app.include_router(excel_template_controller.router)
 
 # Root endpoint
 @app.get("/", tags=["root"], summary="Root endpoint", description="Returns a welcome message for the API")

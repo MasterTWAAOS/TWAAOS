@@ -60,7 +60,7 @@ def create_user(
         UserResponse: The created user details
         
     Raises:
-        HTTPException: If a user with the same email already exists
+        HTTPException: If a user with the same email already exists or input validation fails
     """
     # Check if user with this email already exists
     existing_user = service.get_user_by_email(user_data.email)
@@ -69,7 +69,14 @@ def create_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"User with email {user_data.email} already exists"
         )
-    return service.create_user(user_data)
+    
+    try:
+        return service.create_user(user_data)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 @router.put("/{user_id}", response_model=UserResponse, summary="Update user", description="Update an existing user's information")
 @inject
@@ -88,15 +95,21 @@ def update_user(
         UserResponse: The updated user details
         
     Raises:
-        HTTPException: If the user is not found
+        HTTPException: If the user is not found or if validation fails
     """
-    updated_user = service.update_user(user_id, user_data)
-    if not updated_user:
+    try:
+        updated_user = service.update_user(user_id, user_data)
+        if not updated_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+        return updated_user
+    except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with ID {user_id} not found"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
-    return updated_user
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete user", description="Delete a user from the system")
 @inject

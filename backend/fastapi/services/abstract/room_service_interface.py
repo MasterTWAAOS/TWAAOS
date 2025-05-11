@@ -1,0 +1,28 @@
+from abc import ABC, abstractmethod
+from typing import List, Optional
+from models.DTOs.room_dto import RoomCreate, RoomUpdate, RoomResponse
+
+class IRoomService(ABC):
+    @abstractmethod
+    def get_all_rooms(self) -> List[RoomResponse]:
+        pass
+
+    @abstractmethod
+    def get_room_by_id(self, room_id: int) -> Optional[RoomResponse]:
+        pass
+    
+    @abstractmethod
+    def get_rooms_by_building(self, building_name: str) -> List[RoomResponse]:
+        pass
+
+    @abstractmethod
+    def create_room(self, room_data: RoomCreate) -> RoomResponse:
+        pass
+
+    @abstractmethod
+    def update_room(self, room_id: int, room_data: RoomUpdate) -> Optional[RoomResponse]:
+        pass
+
+    @abstractmethod
+    def delete_room(self, room_id: int) -> bool:
+        pass

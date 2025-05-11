@@ -5,8 +5,9 @@ from sqlalchemy import pool
 
 from alembic import context
 
-# Import models for Alembic to detect
-from models.user import Base
+# Import models package which loads all models and their metadata
+import models
+from models.base import Base
 from config.database import SQLALCHEMY_DATABASE_URL
 
 # this is the Alembic Config object, which provides
