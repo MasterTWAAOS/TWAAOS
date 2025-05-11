@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from models.DTOs.notification_dto import NotificationCreate, NotificationUpdate, NotificationResponse
 
 class INotificationService(ABC):
@@ -13,6 +13,10 @@ class INotificationService(ABC):
     
     @abstractmethod
     def get_notifications_by_user_id(self, user_id: int) -> List[NotificationResponse]:
+        pass
+        
+    @abstractmethod
+    def validate_user_id(self, user_id: int) -> Tuple[bool, Optional[str]]:
         pass
     
     @abstractmethod

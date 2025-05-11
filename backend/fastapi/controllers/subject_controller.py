@@ -90,8 +90,17 @@ def create_subject(
         
     Returns:
         SubjectResponse: The created subject details
+        
+    Raises:
+        HTTPException: If validation fails for foreign keys
     """
-    return service.create_subject(subject_data)
+    try:
+        return service.create_subject(subject_data)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 @router.put("/{subject_id}", response_model=SubjectResponse, summary="Update subject", description="Update an existing subject's information")
 @inject
@@ -110,15 +119,21 @@ def update_subject(
         SubjectResponse: The updated subject details
         
     Raises:
-        HTTPException: If the subject is not found
+        HTTPException: If the subject is not found or validation fails
     """
-    updated_subject = service.update_subject(subject_id, subject_data)
-    if not updated_subject:
+    try:
+        updated_subject = service.update_subject(subject_id, subject_data)
+        if not updated_subject:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Subject with ID {subject_id} not found"
+            )
+        return updated_subject
+    except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Subject with ID {subject_id} not found"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
-    return updated_subject
 
 @router.delete("/{subject_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete subject", description="Delete a subject from the system")
 @inject

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from models.DTOs.subject_dto import SubjectCreate, SubjectUpdate, SubjectResponse
 
 class ISubjectService(ABC):
@@ -17,6 +17,14 @@ class ISubjectService(ABC):
     
     @abstractmethod
     def get_subjects_by_teacher_id(self, teacher_id: int) -> List[SubjectResponse]:
+        pass
+        
+    @abstractmethod
+    def validate_group_id(self, group_id: int) -> Tuple[bool, Optional[str]]:
+        pass
+        
+    @abstractmethod
+    def validate_teacher_id(self, teacher_id: int) -> Tuple[bool, Optional[str]]:  
         pass
 
     @abstractmethod

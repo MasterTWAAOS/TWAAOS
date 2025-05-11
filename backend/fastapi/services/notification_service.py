@@ -1,14 +1,17 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from datetime import datetime
 
 from models.notification import Notification
 from models.DTOs.notification_dto import NotificationCreate, NotificationUpdate, NotificationResponse
 from repositories.abstract.notification_repository_interface import INotificationRepository
+from repositories.abstract.user_repository_interface import IUserRepository
 from services.abstract.notification_service_interface import INotificationService
 
 class NotificationService(INotificationService):
-    def __init__(self, notification_repository: INotificationRepository):
+    def __init__(self, notification_repository: INotificationRepository,
+                 user_repository: IUserRepository):
         self.notification_repository = notification_repository
+        self.user_repository = user_repository
 
     def get_all_notifications(self) -> List[NotificationResponse]:
         notifications = self.notification_repository.get_all()
@@ -23,12 +26,36 @@ class NotificationService(INotificationService):
     def get_notifications_by_user_id(self, user_id: int) -> List[NotificationResponse]:
         notifications = self.notification_repository.get_by_user_id(user_id)
         return [NotificationResponse.model_validate(notification) for notification in notifications]
+        
+    def validate_user_id(self, user_id: int) -> Tuple[bool, Optional[str]]:
+        """Validates if the user_id exists.
+        
+        Args:
+            user_id: The user ID to validate
+            
+        Returns:
+            Tuple containing (is_valid, error_message)
+            is_valid: True if validation passes, False otherwise
+            error_message: Description of the error if validation fails, None otherwise
+        """
+        # Check if user exists
+        user = self.user_repository.get_by_id(user_id)
+        if not user:
+            return False, f"User with ID {user_id} does not exist"
+        
+        # All checks passed
+        return True, None
     
     def get_notifications_by_status(self, status: str) -> List[NotificationResponse]:
         notifications = self.notification_repository.get_by_status(status)
         return [NotificationResponse.model_validate(notification) for notification in notifications]
 
     def create_notification(self, notification_data: NotificationCreate) -> NotificationResponse:
+        # Validate user_id
+        is_valid, error_message = self.validate_user_id(notification_data.userId)
+        if not is_valid:
+            raise ValueError(error_message)
+            
         # Create new notification object
         notification = Notification(
             userId=notification_data.userId,
@@ -45,6 +72,12 @@ class NotificationService(INotificationService):
         notification = self.notification_repository.get_by_id(notification_id)
         if not notification:
             return None
+            
+        # Validate user_id if provided
+        if notification_data.userId is not None:
+            is_valid, error_message = self.validate_user_id(notification_data.userId)
+            if not is_valid:
+                raise ValueError(error_message)
             
         # Update notification fields if provided
         if notification_data.userId is not None:

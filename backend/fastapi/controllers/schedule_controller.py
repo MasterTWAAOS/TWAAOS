@@ -155,8 +155,17 @@ def create_schedule(
         
     Returns:
         ScheduleResponse: The created schedule details
+        
+    Raises:
+        HTTPException: If validation fails for foreign keys
     """
-    return service.create_schedule(schedule_data)
+    try:
+        return service.create_schedule(schedule_data)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 @router.put("/{schedule_id}", response_model=ScheduleResponse, summary="Update schedule", description="Update an existing schedule's information")
 @inject
@@ -175,15 +184,21 @@ def update_schedule(
         ScheduleResponse: The updated schedule details
         
     Raises:
-        HTTPException: If the schedule is not found
+        HTTPException: If the schedule is not found or validation fails
     """
-    updated_schedule = service.update_schedule(schedule_id, schedule_data)
-    if not updated_schedule:
+    try:
+        updated_schedule = service.update_schedule(schedule_id, schedule_data)
+        if not updated_schedule:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Schedule with ID {schedule_id} not found"
+            )
+        return updated_schedule
+    except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Schedule with ID {schedule_id} not found"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
-    return updated_schedule
 
 @router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete schedule", description="Delete a schedule from the system")
 @inject

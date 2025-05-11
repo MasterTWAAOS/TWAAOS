@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from datetime import date
 from models.DTOs.schedule_dto import ScheduleCreate, ScheduleUpdate, ScheduleResponse
 
@@ -34,6 +34,22 @@ class IScheduleService(ABC):
     
     @abstractmethod
     def get_schedules_by_status(self, status: str) -> List[ScheduleResponse]:
+        pass
+        
+    @abstractmethod
+    def validate_subject_id(self, subject_id: int) -> Tuple[bool, Optional[str]]:
+        pass
+        
+    @abstractmethod
+    def validate_teacher_id(self, teacher_id: int) -> Tuple[bool, Optional[str]]:
+        pass
+        
+    @abstractmethod
+    def validate_room_id(self, room_id: int) -> Tuple[bool, Optional[str]]:
+        pass
+        
+    @abstractmethod
+    def validate_group_id(self, group_id: int) -> Tuple[bool, Optional[str]]:
         pass
 
     @abstractmethod

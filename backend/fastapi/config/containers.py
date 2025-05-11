@@ -103,7 +103,9 @@ class Container(containers.DeclarativeContainer):
     
     subject_service = providers.Factory(
         SubjectService,
-        subject_repository=subject_repository
+        subject_repository=subject_repository,
+        group_repository=group_repository,
+        user_repository=user_repository
     )
     
     room_service = providers.Factory(
@@ -113,12 +115,17 @@ class Container(containers.DeclarativeContainer):
     
     schedule_service = providers.Factory(
         ScheduleService,
-        schedule_repository=schedule_repository
+        schedule_repository=schedule_repository,
+        subject_repository=subject_repository,
+        user_repository=user_repository,
+        room_repository=room_repository,
+        group_repository=group_repository
     )
     
     notification_service = providers.Factory(
         NotificationService,
-        notification_repository=notification_repository
+        notification_repository=notification_repository,
+        user_repository=user_repository
     )
     
     excel_template_service = providers.Factory(

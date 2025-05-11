@@ -90,8 +90,17 @@ def create_notification(
         
     Returns:
         NotificationResponse: The created notification details
+        
+    Raises:
+        HTTPException: If validation fails for userId
     """
-    return service.create_notification(notification_data)
+    try:
+        return service.create_notification(notification_data)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 @router.put("/{notification_id}", response_model=NotificationResponse, summary="Update notification", description="Update an existing notification's information")
 @inject
@@ -110,15 +119,21 @@ def update_notification(
         NotificationResponse: The updated notification details
         
     Raises:
-        HTTPException: If the notification is not found
+        HTTPException: If the notification is not found or validation fails
     """
-    updated_notification = service.update_notification(notification_id, notification_data)
-    if not updated_notification:
+    try:
+        updated_notification = service.update_notification(notification_id, notification_data)
+        if not updated_notification:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Notification with ID {notification_id} not found"
+            )
+        return updated_notification
+    except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Notification with ID {notification_id} not found"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
-    return updated_notification
 
 @router.put("/{notification_id}/read", response_model=NotificationResponse, summary="Mark notification as read", description="Mark a notification as read")
 @inject
