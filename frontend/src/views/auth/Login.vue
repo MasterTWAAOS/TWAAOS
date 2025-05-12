@@ -124,7 +124,7 @@ export default {
           email: 'student1@student.usv.ro', 
           role: 'SG', 
           googleId: 'dev-tudor-albu',
-          groupId: 1  // This should match the ID of the test group created during sync
+          groupId: 914  // This should match the ID of the test group created during sync
         },
         { 
           name: 'Matei Neagu (Professor)', 

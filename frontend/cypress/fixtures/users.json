@@ -1,0 +1,30 @@
+{
+  "admin": {
+    "email": "a@usv.ro",
+    "password": "admin123",
+    "firstName": "A",
+    "lastName": "A",
+    "role": "ADM"
+  },
+  "student": {
+    "email": "student1@student.usv.ro",
+    "firstName": "Tudor",
+    "lastName": "Albu",
+    "role": "SG",
+    "groupId": 914,
+    "groupName": "Test FIESC Group"
+  },
+  "professor": {
+    "email": "professor@fiesc.usv.ro",
+    "firstName": "Matei",
+    "lastName": "Neagu",
+    "role": "CD",
+    "department": "C"
+  },
+  "secretary": {
+    "email": "secretary@usv.ro",
+    "firstName": "Alina",
+    "lastName": "Berca",
+    "role": "SEC"
+  }
+}
