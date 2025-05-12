@@ -4,24 +4,43 @@ from config.settings import logger, TARGET_FACULTY_NAME
 def transform_groups(groups):
     """Transform groups from USV API format to our API format
     
-    Extract only the needed fields and format them according to our GroupDTO
+    Extract only the needed fields and format them according to our GroupDTO.
+    Deduplicate groups by groupName, keeping only the first occurrence but storing
+    all original IDs in the groupIds field.
     """
-    transformed = []
+    # Dictionary to track unique groups by name and collect all related IDs
+    unique_groups = {}
     
     for group in groups:
         # Skip any groups with missing required fields
-        if not group.get("name"):
+        if not group.get("groupName"):
+            continue
+            
+        group_name = group.get("groupName")
+        group_id = group.get("id")
+        
+        # If we've already seen this group name, just add its ID to the list
+        if group_name in unique_groups:
+            # Add this ID to the existing group's groupIds list
+            if group_id:
+                unique_groups[group_name]["groupIds"].append(group_id)
             continue
             
         # Create a new dict with only the fields we need
         group_data = {
-            "name": group.get("name"),
+            "name": group_name,
             "studyYear": int(group.get("studyYear") or 1),
-            "specializationShortName": group.get("specializationShortName") or ""
+            "specializationShortName": group.get("specializationShortName") or "",
+            "groupIds": [group_id] if group_id else []  # Initialize with this group's ID
         }
-        transformed.append(group_data)
+        
+        # Store in our unique groups dictionary
+        unique_groups[group_name] = group_data
     
-    logger.info(f"Transformed {len(transformed)} groups")
+    # Convert the dictionary to a list
+    transformed = list(unique_groups.values())
+    
+    logger.info(f"Found {len(groups)} total groups, deduplicated to {len(transformed)} unique groups")
     return transformed
 
 def transform_rooms(rooms):

@@ -25,6 +25,16 @@ class AdminService {
   getSystemAlerts() {
     return apiClient.get('/admin/alerts')
   }
+  
+  /**
+   * Synchronize data from USV API
+   * This calls the /api/sync/data endpoint in the FastAPI backend
+   * which then triggers the Flask sync service and creates test users
+   * @returns {Promise} API Response
+   */
+  syncData() {
+    return apiClient.post('/sync/data')
+  }
 
   /**
    * Dismiss system alert

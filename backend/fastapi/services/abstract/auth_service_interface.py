@@ -22,7 +22,7 @@ class IAuthService(ABC):
         pass
     
     @abstractmethod
-    def get_or_create_google_user(self, google_id: str, email: str, first_name: str, last_name: str) -> Optional[User]:
+    def get_or_create_google_user(self, google_id: str, email: str, first_name: str, last_name: str, role: Optional[str] = None, group_id: Optional[int] = None) -> Optional[User]:
         """
         Get or create a user with Google authentication data
         
@@ -31,6 +31,8 @@ class IAuthService(ABC):
             email: User's email address
             first_name: User's first name
             last_name: User's last name
+            role: User's role (SG for student, CD for professor)
+            group_id: Optional group ID for students
             
         Returns:
             Optional[User]: The user object if found or created, None otherwise

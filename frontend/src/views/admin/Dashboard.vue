@@ -485,20 +485,21 @@ export default {
           life: 3000
         })
         
-        // In a real implementation, call the API
-        // await store.dispatch('sync/fetchAndSyncData')
+        // Call the actual backend API to sync data and create test users
+        const response = await AdminService.syncData()
         
-        // For demo purposes, simulate API call
-        await new Promise(resolve => setTimeout(resolve, 3000))
+        // Get the sync result details from the response
+        const syncResult = response.data
         
         // Update sync status
-        stats.syncStatus = true
+        stats.syncStatus = syncResult.success
         
+        // Show success notification with details from the API
         store.dispatch('notifications/showNotification', {
           severity: 'success',
           summary: 'Sincronizare',
-          detail: 'Datele au fost sincronizate cu succes',
-          life: 3000
+          detail: syncResult.message || 'Datele au fost sincronizate cu succes',
+          life: 5000
         })
       } catch (error) {
         console.error('Error syncing data:', error)

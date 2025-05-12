@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from services.abstract.auth_service_interface import IAuthService
 from models.user import User
 from repositories.abstract.user_repository_interface import IUserRepository
+from repositories.abstract.group_repository_interface import IGroupRepository
 from services.token_service import decode_access_token
 
 class AuthService(IAuthService):
@@ -12,15 +13,17 @@ class AuthService(IAuthService):
     Implementation of authentication service
     """
     
-    def __init__(self, user_repository: IUserRepository, db: Session):
+    def __init__(self, user_repository: IUserRepository, group_repository: IGroupRepository, db: Session):
         """
-        Initialize the auth service with a user repository and database session
+        Initialize the auth service with a user repository, group repository and database session
         
         Args:
             user_repository: Repository for user operations
+            group_repository: Repository for group operations
             db: SQLAlchemy database session
         """
         self.user_repository = user_repository
+        self.group_repository = group_repository
         self.db = db
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     
@@ -45,7 +48,7 @@ class AuthService(IAuthService):
         
         return user
     
-    def get_or_create_google_user(self, google_id: str, email: str, first_name: str, last_name: str) -> Optional[User]:
+    def get_or_create_google_user(self, google_id: str, email: str, first_name: str, last_name: str, role: Optional[str] = None, group_id: Optional[int] = None) -> Optional[User]:
         """
         Get or create a user with Google authentication data
         
@@ -54,6 +57,8 @@ class AuthService(IAuthService):
             email: User's email address
             first_name: User's first name
             last_name: User's last name
+            role: User's role (SG for student, CD for professor)
+            group_id: Optional group ID for students
             
         Returns:
             Optional[User]: The user object if found or created, None otherwise
@@ -74,24 +79,28 @@ class AuthService(IAuthService):
                 self.db.commit()
             return user
         
-        # If no user domain match is found, we cannot create a new user automatically
-        # as we'd need to associate them with a group, role, etc.
-        # This would typically require admin approval
-        # For testing purposes, we could create a default student user:
-        
-        # Determine if the email is from a student domain (implementation depends on your requirements)
-        is_student_email = email.endswith("@student.usv.ro")
-        is_professor_email = email.endswith("@usv.ro") and not is_student_email
-        
-        if is_student_email or is_professor_email:
-            # Create a new user
+        # If we have a valid role from the controller (based on email domain validation),
+        # we can create a new user automatically
+        # Note: ADM (admin) users should only be created through traditional registration,
+        # not through Google authentication for security reasons
+        if role in ["SG", "CD", "SEC"]:
+            # For student role, verify if the group exists before assigning
+            assigned_group_id = None
+            if role == "SG" and group_id is not None:
+                # Use the repository to check if the group exists
+                if self.group_repository.exists_by_id(group_id):
+                    assigned_group_id = group_id
+                else:
+                    print(f"Group ID {group_id} does not exist in the database. Creating user without group assignment.")
+            
+            # Create a new user with the role provided from the controller
             new_user = User(
                 firstName=first_name,
                 lastName=last_name,
                 email=email,
                 googleId=google_id,
-                role="SG" if is_student_email else "CD", # Students or Professors
-                # groupId would need to be determined based on email or other business logic
+                role=role,
+                groupId=assigned_group_id  # Only assign if we confirmed it exists
             )
             
             created_user = self.user_repository.create(new_user)

@@ -13,6 +13,15 @@ class Settings(BaseModel):
     
     # Google OAuth Settings
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    
+    # USV Email Settings
+    USV_EMAIL_DOMAINS: list = [
+        "student.usv.ro",
+        "usv.ro",
+        "staff.usv.ro",
+        "fim.usv.ro",
+        "fiesc.usv.ro"
+    ]
 
     # Note: With BaseModel instead of BaseSettings, env_file loading is not automatic
     # We'll use os.getenv directly instead for environment variables

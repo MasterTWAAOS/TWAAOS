@@ -116,11 +116,111 @@ export default {
       //   store.dispatch('auth/loginWithGoogle', idToken)
       // })
       
-      // Mock implementation for demonstration
-      store.dispatch('auth/loginWithGoogle', 'mock_google_token')
-        .catch(error => {
-          console.error('Google Sign-In failed:', error)
+      // For development, show a dropdown to select test user type
+      // For development, we'll use a selection of test users
+      const testUsers = [
+        { 
+          name: 'Tudor Albu (Student)', 
+          email: 'student1@student.usv.ro', 
+          role: 'SG', 
+          googleId: 'dev-tudor-albu',
+          groupId: 1  // This should match the ID of the test group created during sync
+        },
+        { 
+          name: 'Matei Neagu (Professor)', 
+          email: 'professor@fiesc.usv.ro', 
+          role: 'CD', 
+          googleId: 'dev-matei-neagu',
+          groupId: null
+        },
+        { 
+          name: 'Alina Berca (Secretariat)', 
+          email: 'secretary@usv.ro', 
+          role: 'SEC', 
+          googleId: 'dev-alina-berca',
+          groupId: null
+        }
+        // Admin users should use traditional login with email/password
+      ]
+      
+      // Create a simple dialog for user selection
+      const userSelect = document.createElement('div')
+      userSelect.style.position = 'fixed'
+      userSelect.style.top = '0'
+      userSelect.style.left = '0'
+      userSelect.style.width = '100%'
+      userSelect.style.height = '100%'
+      userSelect.style.backgroundColor = 'rgba(0,0,0,0.5)'
+      userSelect.style.display = 'flex'
+      userSelect.style.justifyContent = 'center'
+      userSelect.style.alignItems = 'center'
+      userSelect.style.zIndex = '9999'
+      
+      const dialog = document.createElement('div')
+      dialog.style.backgroundColor = 'white'
+      dialog.style.padding = '20px'
+      dialog.style.borderRadius = '8px'
+      dialog.style.width = '400px'
+      dialog.style.maxWidth = '90%'
+      dialog.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+      
+      const title = document.createElement('h3')
+      title.innerText = 'Select Test User'
+      title.style.marginTop = '0'
+      dialog.appendChild(title)
+      
+      const description = document.createElement('p')
+      description.innerText = 'This is a development-only feature to test different user roles.'
+      dialog.appendChild(description)
+      
+      testUsers.forEach(user => {
+        const button = document.createElement('button')
+        button.innerText = user.name
+        button.style.display = 'block'
+        button.style.width = '100%'
+        button.style.padding = '10px'
+        button.style.margin = '8px 0'
+        button.style.backgroundColor = '#4CAF50'
+        button.style.color = 'white'
+        button.style.border = 'none'
+        button.style.borderRadius = '4px'
+        button.style.cursor = 'pointer'
+        
+        button.addEventListener('click', () => {
+          // Create a token in the format expected by the backend: email|role|groupId
+          // This format matches what the backend expects in development mode
+          const mockToken = `${user.email}|${user.role}|${user.groupId || 'null'}`
+          document.body.removeChild(userSelect)
+          
+          store.dispatch('auth/loginWithGoogle', mockToken)
+            .catch(error => {
+              console.error('Google Sign-In failed:', error)
+            })
         })
+        
+        dialog.appendChild(button)
+      })
+      
+      // Add a cancel button
+      const cancelButton = document.createElement('button')
+      cancelButton.innerText = 'Cancel'
+      cancelButton.style.display = 'block'
+      cancelButton.style.width = '100%'
+      cancelButton.style.padding = '10px'
+      cancelButton.style.margin = '8px 0'
+      cancelButton.style.backgroundColor = '#f44336'
+      cancelButton.style.color = 'white'
+      cancelButton.style.border = 'none'
+      cancelButton.style.borderRadius = '4px'
+      cancelButton.style.cursor = 'pointer'
+      
+      cancelButton.addEventListener('click', () => {
+        document.body.removeChild(userSelect)
+      })
+      
+      dialog.appendChild(cancelButton)
+      userSelect.appendChild(dialog)
+      document.body.appendChild(userSelect)
     }
     
     // Clear any previous errors when the component mounts

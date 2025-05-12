@@ -13,6 +13,8 @@ services:
       - POSTGRES_SERVER=db
       - POSTGRES_PORT=5432
       - POSTGRES_DB=twaaos
+      - SECRET_KEY=your-secret-key-for-development-only
+      - GOOGLE_CLIENT_ID=
     depends_on:
       - db
     restart: always

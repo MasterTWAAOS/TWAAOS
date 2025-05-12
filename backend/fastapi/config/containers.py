@@ -138,5 +138,6 @@ class Container(containers.DeclarativeContainer):
     auth_service = providers.Factory(
         AuthService,
         user_repository=user_repository,
+        group_repository=group_repository,
         db=db
     )

@@ -137,9 +137,16 @@ body {
       display: flex;
       align-items: center;
       
+      picture {
+        display: inline-block;
+        line-height: 0;
+      }
+      
       img {
         height: 50px;
         margin-right: 1rem;
+        object-fit: contain;
+        max-width: 100%;
       }
       
       .app-name {

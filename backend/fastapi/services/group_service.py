@@ -24,7 +24,8 @@ class GroupService(IGroupService):
         group = Group(
             name=group_data.name,
             studyYear=group_data.studyYear,
-            specializationShortName=group_data.specializationShortName
+            specializationShortName=group_data.specializationShortName,
+            groupIds=group_data.groupIds
         )
         
         # Save to database
@@ -43,6 +44,8 @@ class GroupService(IGroupService):
             group.studyYear = group_data.studyYear
         if group_data.specializationShortName is not None:
             group.specializationShortName = group_data.specializationShortName
+        if group_data.groupIds is not None:
+            group.groupIds = group_data.groupIds
             
         # Save changes
         updated_group = self.group_repository.update(group)

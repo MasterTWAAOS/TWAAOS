@@ -2,7 +2,12 @@
   <div class="auth-layout">
     <div class="auth-container">
       <div class="auth-header">
-        <img src="@/assets/images/logo.png" alt="FIESC Logo" class="auth-logo" />
+        <picture>
+          <!-- Use SVG as primary format (better for scaling) -->
+          <source srcset="@/assets/images/logo.svg" type="image/svg+xml">
+          <!-- Fallback to PNG if SVG not supported -->
+          <img src="@/assets/images/logo.png" alt="FIESC Logo" class="auth-logo" onerror="this.onerror=null; this.src='/logo.png';" />
+        </picture>
         <h1>FIESC - Planificarea Examenelor</h1>
       </div>
       
@@ -58,6 +63,13 @@ export default {
   .auth-logo {
     height: 60px;
     margin-bottom: 1rem;
+    object-fit: contain;
+    max-width: 100%;
+  }
+  
+  picture {
+    display: inline-block;
+    line-height: 0;
   }
   
   h1 {

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, ARRAY
 from sqlalchemy.orm import relationship
 from models.base import Base
 
@@ -9,6 +9,7 @@ class Group(Base):
     name = Column(String, nullable=False)
     studyYear = Column(Integer, nullable=False)
     specializationShortName = Column(String, nullable=False)
+    groupIds = Column(ARRAY(Integer), nullable=True)  # List of original IDs from USV API
     
     # Relationships
     users = relationship("User", back_populates="group")

@@ -4,7 +4,12 @@
       <div class="container">
         <div class="header-content p-d-flex p-jc-between p-ai-center">
           <div class="logo">
-            <img src="@/assets/images/logo.png" alt="FIESC Logo" />
+            <picture>
+              <!-- Use SVG as primary format (better for scaling) -->
+              <source srcset="@/assets/images/logo.svg" type="image/svg+xml">
+              <!-- Fallback to PNG if SVG not supported -->
+              <img src="@/assets/images/logo.png" alt="FIESC Logo" class="header-logo" onerror="this.onerror=null; this.src='/logo.png';" />
+            </picture>
             <h1>FIESC - Planificarea Examenelor</h1>
           </div>
           <div class="user-menu">
@@ -133,9 +138,16 @@ export default {
     display: flex;
     align-items: center;
     
-    img {
+    .header-logo {
       height: 40px;
       margin-right: 1rem;
+      object-fit: contain;
+      max-width: 100%;
+    }
+    
+    picture {
+      display: inline-block;
+      line-height: 0;
     }
     
     h1 {
