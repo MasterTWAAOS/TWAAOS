@@ -10,7 +10,7 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 @router.get("", response_model=List[NotificationResponse], summary="Get all notifications", description="Retrieve a list of all notifications in the system")
 @inject
-def get_all_notifications(
+async def get_all_notifications(
     service: INotificationService = Depends(Provide[Container.notification_service])
 ):
     """Get all notifications endpoint.
@@ -18,11 +18,11 @@ def get_all_notifications(
     Returns:
         List[NotificationResponse]: A list of all notifications
     """
-    return service.get_all_notifications()
+    return await service.get_all_notifications()
 
 @router.get("/{notification_id}", response_model=NotificationResponse, summary="Get notification by ID", description="Retrieve a specific notification by its ID")
 @inject
-def get_notification(
+async def get_notification(
     notification_id: int, 
     service: INotificationService = Depends(Provide[Container.notification_service])
 ):
@@ -37,7 +37,8 @@ def get_notification(
     Raises:
         HTTPException: If the notification is not found
     """
-    notification = service.get_notification_by_id(notification_id)
+    # First check if the notification exists
+    notification = await service.get_notification_by_id(notification_id)
     if not notification:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -45,9 +46,9 @@ def get_notification(
         )
     return notification
 
-@router.get("/user/{user_id}", response_model=List[NotificationResponse], summary="Get notifications by user ID", description="Retrieve all notifications for a specific user")
+@router.get("/user/{user_id}", response_model=List[NotificationResponse], summary="Get notifications by user", description="Retrieve all notifications for a specific user")
 @inject
-def get_notifications_by_user(
+async def get_notifications_by_user(
     user_id: int, 
     service: INotificationService = Depends(Provide[Container.notification_service])
 ):
@@ -59,11 +60,11 @@ def get_notifications_by_user(
     Returns:
         List[NotificationResponse]: A list of notifications for the specified user
     """
-    return service.get_notifications_by_user_id(user_id)
+    return await service.get_notifications_by_user_id(user_id)
 
 @router.get("/status/{status}", response_model=List[NotificationResponse], summary="Get notifications by status", description="Retrieve all notifications with a specific status")
 @inject
-def get_notifications_by_status(
+async def get_notifications_by_status(
     status: str, 
     service: INotificationService = Depends(Provide[Container.notification_service])
 ):
@@ -75,11 +76,11 @@ def get_notifications_by_status(
     Returns:
         List[NotificationResponse]: A list of notifications with the specified status
     """
-    return service.get_notifications_by_status(status)
+    return await service.get_notifications_by_status(status)
 
-@router.post("", response_model=NotificationResponse, status_code=status.HTTP_201_CREATED, summary="Create new notification", description="Create a new notification in the system")
+@router.post("", response_model=NotificationResponse, status_code=status.HTTP_201_CREATED, summary="Create notification", description="Create a new notification in the system")
 @inject
-def create_notification(
+async def create_notification(
     notification_data: NotificationCreate, 
     service: INotificationService = Depends(Provide[Container.notification_service])
 ):
@@ -95,7 +96,7 @@ def create_notification(
         HTTPException: If validation fails for userId
     """
     try:
-        return service.create_notification(notification_data)
+        return await service.create_notification(notification_data)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -104,7 +105,7 @@ def create_notification(
 
 @router.put("/{notification_id}", response_model=NotificationResponse, summary="Update notification", description="Update an existing notification's information")
 @inject
-def update_notification(
+async def update_notification(
     notification_id: int, 
     notification_data: NotificationUpdate, 
     service: INotificationService = Depends(Provide[Container.notification_service])
@@ -121,23 +122,21 @@ def update_notification(
     Raises:
         HTTPException: If the notification is not found or validation fails
     """
-    try:
-        updated_notification = service.update_notification(notification_id, notification_data)
-        if not updated_notification:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Notification with ID {notification_id} not found"
-            )
-        return updated_notification
-    except ValueError as e:
+    # First check if the notification exists
+    notification = await service.get_notification_by_id(notification_id)
+    if not notification:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Notification with ID {notification_id} not found"
         )
+    
+    # Update the notification
+    updated_notification = await service.update_notification(notification_id, notification_data)
+    return updated_notification
 
-@router.put("/{notification_id}/read", response_model=NotificationResponse, summary="Mark notification as read", description="Mark a notification as read")
+@router.put("/{notification_id}/read", response_model=NotificationResponse, summary="Mark notification as read", description="Mark a notification as having been read")
 @inject
-def mark_notification_as_read(
+async def mark_notification_as_read(
     notification_id: int, 
     service: INotificationService = Depends(Provide[Container.notification_service])
 ):
@@ -152,7 +151,7 @@ def mark_notification_as_read(
     Raises:
         HTTPException: If the notification is not found
     """
-    updated_notification = service.mark_as_read(notification_id)
+    updated_notification = await service.mark_as_read(notification_id)
     if not updated_notification:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -162,7 +161,7 @@ def mark_notification_as_read(
 
 @router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete notification", description="Delete a notification from the system")
 @inject
-def delete_notification(
+async def delete_notification(
     notification_id: int, 
     service: INotificationService = Depends(Provide[Container.notification_service])
 ):
@@ -177,7 +176,7 @@ def delete_notification(
     Raises:
         HTTPException: If the notification is not found
     """
-    success = service.delete_notification(notification_id)
+    success = await service.delete_notification(notification_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

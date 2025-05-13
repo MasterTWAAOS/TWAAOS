@@ -40,7 +40,7 @@ async def login(
     Raises:
         HTTPException: If authentication fails
     """
-    user = auth_service.authenticate_user(login_data.username, login_data.password)
+    user = await auth_service.authenticate_user(login_data.username, login_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -57,7 +57,7 @@ async def login(
         )
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
+    access_token = await create_access_token(
         data={
             "sub": str(user.id),
             "firstName": user.firstName,
@@ -179,7 +179,7 @@ async def google_login(
                 user_role = "CD"  # Professor
             
         # Get or create the user with the verified Google information
-        user = auth_service.get_or_create_google_user(
+        user = await auth_service.get_or_create_google_user(
             google_id=google_id,
             email=email,
             first_name=first_name,
@@ -195,7 +195,7 @@ async def google_login(
             )
         
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(
+        access_token = await create_access_token(
             data={
                 "sub": str(user.id),
                 "firstName": user.firstName,
@@ -228,7 +228,7 @@ async def google_login(
         )
 
 @router.post("/change-password", response_model=dict, summary="Change password", 
-             description="Change the password for the current admin user")
+             description="Change password for authenticated admin user")
 @inject
 async def change_password(
     request: ChangePasswordRequest,

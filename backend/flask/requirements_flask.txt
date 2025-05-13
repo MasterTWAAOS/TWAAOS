@@ -1,7 +1,11 @@
-flask==2.2.3
-werkzeug==2.2.3
-requests==2.28.2
+quart==0.18.3
+asyncio==3.4.3
+aiohttp==3.8.4
 python-dotenv==1.0.0
-gunicorn==20.1.0
-flask-swagger-ui==4.11.1
+hypercorn==0.14.3
+requests==2.28.2
+aiofiles==23.1.0
 flasgger==0.9.5
+httpx==0.24.0
+quart-cors==0.5.0
+werkzeug==2.2.3

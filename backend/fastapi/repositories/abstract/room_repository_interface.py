@@ -4,31 +4,31 @@ from models.room import Room
 
 class IRoomRepository(ABC):
     @abstractmethod
-    def get_all(self) -> List[Room]:
+    async def get_all(self) -> List[Room]:
         pass
 
     @abstractmethod
-    def get_by_id(self, room_id: int) -> Optional[Room]:
+    async def get_by_id(self, room_id: int) -> Optional[Room]:
         pass
     
     @abstractmethod
-    def get_by_building(self, building_name: str) -> List[Room]:
+    async def get_by_building(self, building_name: str) -> List[Room]:
         pass
 
     @abstractmethod
-    def create(self, room: Room) -> Room:
+    async def create(self, room: Room) -> Room:
         pass
 
     @abstractmethod
-    def update(self, room: Room) -> Room:
+    async def update(self, room: Room) -> Room:
         pass
 
     @abstractmethod
-    def delete(self, room_id: int) -> bool:
+    async def delete(self, room_id: int) -> bool:
         pass
         
     @abstractmethod
-    def delete_all(self) -> int:
+    async def delete_all(self) -> int:
         """Delete all rooms from the database.
         
         Returns:

@@ -13,9 +13,9 @@ COPY backend/flask/ .
 EXPOSE 5000
 
 # Set environment variables
-ENV FLASK_APP=app.py
-ENV FLASK_ENV=production
+ENV QUART_APP=app.py
+ENV QUART_ENV=production
 ENV FASTAPI_BASE_URL=http://fastapi:8000
 
 # Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
+CMD ["hypercorn", "--bind", "0.0.0.0:5000", "app:app"]

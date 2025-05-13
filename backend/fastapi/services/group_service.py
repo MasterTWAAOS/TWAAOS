@@ -9,17 +9,17 @@ class GroupService(IGroupService):
     def __init__(self, group_repository: IGroupRepository):
         self.group_repository = group_repository
 
-    def get_all_groups(self) -> List[GroupResponse]:
-        groups = self.group_repository.get_all()
+    async def get_all_groups(self) -> List[GroupResponse]:
+        groups = await self.group_repository.get_all()
         return [GroupResponse.model_validate(group) for group in groups]
 
-    def get_group_by_id(self, group_id: int) -> Optional[GroupResponse]:
-        group = self.group_repository.get_by_id(group_id)
+    async def get_group_by_id(self, group_id: int) -> Optional[GroupResponse]:
+        group = await self.group_repository.get_by_id(group_id)
         if group:
             return GroupResponse.model_validate(group)
         return None
 
-    def create_group(self, group_data: GroupCreate) -> GroupResponse:
+    async def create_group(self, group_data: GroupCreate) -> GroupResponse:
         # Create new group object
         group = Group(
             name=group_data.name,
@@ -29,11 +29,11 @@ class GroupService(IGroupService):
         )
         
         # Save to database
-        created_group = self.group_repository.create(group)
+        created_group = await self.group_repository.create(group)
         return GroupResponse.model_validate(created_group)
 
-    def update_group(self, group_id: int, group_data: GroupUpdate) -> Optional[GroupResponse]:
-        group = self.group_repository.get_by_id(group_id)
+    async def update_group(self, group_id: int, group_data: GroupUpdate) -> Optional[GroupResponse]:
+        group = await self.group_repository.get_by_id(group_id)
         if not group:
             return None
             
@@ -48,16 +48,27 @@ class GroupService(IGroupService):
             group.groupIds = group_data.groupIds
             
         # Save changes
-        updated_group = self.group_repository.update(group)
+        updated_group = await self.group_repository.update(group)
         return GroupResponse.model_validate(updated_group)
 
-    def delete_group(self, group_id: int) -> bool:
-        return self.group_repository.delete(group_id)
+    async def delete_group(self, group_id: int) -> bool:
+        return await self.group_repository.delete(group_id)
         
-    def delete_all_groups(self) -> int:
+    async def delete_all_groups(self) -> int:
         """Delete all groups from the database.
         
         Returns:
             int: The number of groups deleted
         """
-        return self.group_repository.delete_all()
+        return await self.group_repository.delete_all()
+
+    async def exists_by_id(self, group_id: int) -> bool:
+        """Check if a group exists by its ID.
+        
+        Args:
+            group_id: The ID of the group to check
+            
+        Returns:
+            bool: True if the group exists, False otherwise
+        """
+        return await self.group_repository.exists_by_id(group_id)

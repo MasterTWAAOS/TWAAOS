@@ -4,35 +4,35 @@ from models.user import User
 
 class IUserRepository(ABC):
     @abstractmethod
-    def get_all(self) -> List[User]:
+    async def get_all(self) -> List[User]:
         pass
 
     @abstractmethod
-    def get_by_id(self, user_id: int) -> Optional[User]:
+    async def get_by_id(self, user_id: int) -> Optional[User]:
         pass
 
     @abstractmethod
-    def get_by_email(self, email: str) -> Optional[User]:
+    async def get_by_email(self, email: str) -> Optional[User]:
         pass
         
     @abstractmethod
-    def get_by_google_id(self, google_id: str) -> Optional[User]:
+    async def get_by_google_id(self, google_id: str) -> Optional[User]:
         pass
 
     @abstractmethod
-    def create(self, user: User) -> User:
+    async def create(self, user: User) -> User:
         pass
 
     @abstractmethod
-    def update(self, user: User) -> User:
+    async def update(self, user: User) -> User:
         pass
 
     @abstractmethod
-    def delete(self, user_id: int) -> bool:
+    async def delete(self, user_id: int) -> bool:
         pass
 
     @abstractmethod
-    def delete_all(self) -> int:
+    async def delete_all(self) -> int:
         """Delete all users from the database.
         
         Returns:

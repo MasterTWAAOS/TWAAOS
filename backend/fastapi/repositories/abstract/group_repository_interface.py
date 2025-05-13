@@ -4,31 +4,31 @@ from models.group import Group
 
 class IGroupRepository(ABC):
     @abstractmethod
-    def get_all(self) -> List[Group]:
+    async def get_all(self) -> List[Group]:
         pass
 
     @abstractmethod
-    def get_by_id(self, group_id: int) -> Optional[Group]:
+    async def get_by_id(self, group_id: int) -> Optional[Group]:
         pass
         
     @abstractmethod
-    def exists_by_id(self, group_id: int) -> bool:
+    async def exists_by_id(self, group_id: int) -> bool:
         pass
 
     @abstractmethod
-    def create(self, group: Group) -> Group:
+    async def create(self, group: Group) -> Group:
         pass
 
     @abstractmethod
-    def update(self, group: Group) -> Group:
+    async def update(self, group: Group) -> Group:
         pass
 
     @abstractmethod
-    def delete(self, group_id: int) -> bool:
+    async def delete(self, group_id: int) -> bool:
         pass
         
     @abstractmethod
-    def delete_all(self) -> int:
+    async def delete_all(self) -> int:
         """Delete all groups from the database.
         
         Returns:

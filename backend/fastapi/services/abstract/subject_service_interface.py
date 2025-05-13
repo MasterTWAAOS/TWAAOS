@@ -4,37 +4,45 @@ from models.DTOs.subject_dto import SubjectCreate, SubjectUpdate, SubjectRespons
 
 class ISubjectService(ABC):
     @abstractmethod
-    def get_all_subjects(self) -> List[SubjectResponse]:
+    async def get_all_subjects(self) -> List[SubjectResponse]:
         pass
 
     @abstractmethod
-    def get_subject_by_id(self, subject_id: int) -> Optional[SubjectResponse]:
+    async def get_subject_by_id(self, subject_id: int) -> Optional[SubjectResponse]:
         pass
     
     @abstractmethod
-    def get_subjects_by_group_id(self, group_id: int) -> List[SubjectResponse]:
+    async def get_subjects_by_group_id(self, group_id: int) -> List[SubjectResponse]:
         pass
     
     @abstractmethod
-    def get_subjects_by_teacher_id(self, teacher_id: int) -> List[SubjectResponse]:
+    async def get_subjects_by_teacher_id(self, teacher_id: int) -> List[SubjectResponse]:
         pass
         
     @abstractmethod
-    def validate_group_id(self, group_id: int) -> Tuple[bool, Optional[str]]:
+    async def get_subjects_by_assistant_id(self, assistant_id: int) -> List[SubjectResponse]:
         pass
         
     @abstractmethod
-    def validate_teacher_id(self, teacher_id: int) -> Tuple[bool, Optional[str]]:  
+    async def validate_group_id(self, group_id: int) -> Tuple[bool, Optional[str]]:
+        pass
+        
+    @abstractmethod
+    async def validate_teacher_id(self, teacher_id: int) -> Tuple[bool, Optional[str]]:  
+        pass
+        
+    @abstractmethod
+    async def validate_assistant_id(self, assistant_id: int) -> Tuple[bool, Optional[str]]:  
         pass
 
     @abstractmethod
-    def create_subject(self, subject_data: SubjectCreate) -> SubjectResponse:
+    async def create_subject(self, subject_data: SubjectCreate) -> SubjectResponse:
         pass
 
     @abstractmethod
-    def update_subject(self, subject_id: int, subject_data: SubjectUpdate) -> Optional[SubjectResponse]:
+    async def update_subject(self, subject_id: int, subject_data: SubjectUpdate) -> Optional[SubjectResponse]:
         pass
 
     @abstractmethod
-    def delete_subject(self, subject_id: int) -> bool:
+    async def delete_subject(self, subject_id: int) -> bool:
         pass

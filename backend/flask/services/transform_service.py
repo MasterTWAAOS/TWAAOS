@@ -1,7 +1,7 @@
 """Services for transforming data from external APIs to our data model."""
 from config.settings import logger, TARGET_FACULTY_NAME
 
-def transform_groups(groups):
+async def transform_groups(groups):
     """Transform groups from USV API format to our API format
     
     Extract only the needed fields and format them according to our GroupDTO.
@@ -43,7 +43,7 @@ def transform_groups(groups):
     logger.info(f"Found {len(groups)} total groups, deduplicated to {len(transformed)} unique groups")
     return transformed
 
-def transform_rooms(rooms):
+async def transform_rooms(rooms):
     """Transform rooms from USV API format to our API format
     
     The room fields in the USV API match our needs, but we want to remove the id field
@@ -85,7 +85,7 @@ def transform_rooms(rooms):
     logger.info(f"Transformed {len(transformed)} rooms successfully, skipped {skipped_count} rooms")
     return transformed
 
-def transform_faculty_staff(staff_data):
+async def transform_faculty_staff(staff_data):
     """Transform faculty staff data from USV API format to our API format
     
     Filter staff by faculty name or department name (Exterior),

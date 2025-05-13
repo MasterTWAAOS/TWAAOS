@@ -1,37 +1,41 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
 from typing import List, Optional
 
 from models.excel_template import ExcelTemplate
 from repositories.abstract.excel_template_repository_interface import IExcelTemplateRepository
 
 class ExcelTemplateRepository(IExcelTemplateRepository):
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
-    def get_all(self) -> List[ExcelTemplate]:
-        return self.db.query(ExcelTemplate).all()
+    async def get_all(self) -> List[ExcelTemplate]:
+        result = await self.db.execute(select(ExcelTemplate))
+        return result.scalars().all()
 
-    def get_by_id(self, template_id: int) -> Optional[ExcelTemplate]:
-        return self.db.query(ExcelTemplate).filter(ExcelTemplate.id == template_id).first()
+    async def get_by_id(self, template_id: int) -> Optional[ExcelTemplate]:
+        result = await self.db.execute(select(ExcelTemplate).filter(ExcelTemplate.id == template_id))
+        return result.scalar_one_or_none()
     
-    def get_by_name(self, name: str) -> Optional[ExcelTemplate]:
-        return self.db.query(ExcelTemplate).filter(ExcelTemplate.name == name).first()
+    async def get_by_name(self, name: str) -> Optional[ExcelTemplate]:
+        result = await self.db.execute(select(ExcelTemplate).filter(ExcelTemplate.name == name))
+        return result.scalar_one_or_none()
 
-    def create(self, template: ExcelTemplate) -> ExcelTemplate:
+    async def create(self, template: ExcelTemplate) -> ExcelTemplate:
         self.db.add(template)
-        self.db.commit()
-        self.db.refresh(template)
+        await self.db.commit()
+        await self.db.refresh(template)
         return template
 
-    def update(self, template: ExcelTemplate) -> ExcelTemplate:
-        self.db.commit()
-        self.db.refresh(template)
+    async def update(self, template: ExcelTemplate) -> ExcelTemplate:
+        await self.db.commit()
+        await self.db.refresh(template)
         return template
 
-    def delete(self, template_id: int) -> bool:
-        template = self.get_by_id(template_id)
+    async def delete(self, template_id: int) -> bool:
+        template = await self.get_by_id(template_id)
         if template:
-            self.db.delete(template)
-            self.db.commit()
+            await self.db.delete(template)
+            await self.db.commit()
             return True
         return False

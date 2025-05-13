@@ -1,10 +1,11 @@
 """
-Main Flask application module.
-This module initializes the Flask application and registers all the blueprints.
+Main Quart application module (async Flask alternative).
+This module initializes the Quart application and registers all the blueprints.
 """
 import os
 import logging
-from flask import Flask
+import asyncio
+from quart import Quart
 from flasgger import Swagger
 from routes.api import api_bp
 
@@ -13,9 +14,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def create_app(test_config=None):
-    """Create and configure the Flask application"""
+    """Create and configure the Quart application"""
     # Create and configure the app
-    app = Flask(__name__, instance_relative_config=True)
+    app = Quart(__name__, instance_relative_config=True)
     
     # Load configuration
     if test_config is None:
@@ -43,7 +44,14 @@ def create_app(test_config=None):
         "description": "API for synchronizing data from USV to TWAAOS",
         "version": "1.0.0",
     }
-    swagger = Swagger(app, config=swagger_config)
+    try:
+        # Try to initialize Swagger - if there are compatibility issues, we'll catch and log them
+        swagger = Swagger(app, config=swagger_config)
+        logger.info('Swagger documentation initialized')
+    except Exception as e:
+        logger.warning(f'Could not initialize Swagger documentation: {str(e)}')
+        logger.warning('API will run without Swagger documentation')
+        pass
     
     # Register blueprints
     app.register_blueprint(api_bp)
@@ -55,12 +63,19 @@ def create_app(test_config=None):
         pass
         
     # Log that we're starting up
-    logger.info('Flask app initialized')
+    logger.info('Quart app initialized')
     
     return app
 
-# Create the Flask app
+# Create the Quart app
 app = create_app()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    import hypercorn.asyncio
+    from hypercorn.config import Config
+    
+    config = Config()
+    config.bind = ["0.0.0.0:5000"]
+    config.use_reloader = True
+    
+    asyncio.run(hypercorn.asyncio.serve(app, config))

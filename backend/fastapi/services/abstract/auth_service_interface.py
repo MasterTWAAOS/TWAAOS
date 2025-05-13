@@ -8,7 +8,7 @@ class IAuthService(ABC):
     """
     
     @abstractmethod
-    def authenticate_user(self, email: str, password: str) -> Optional[User]:
+    async def authenticate_user(self, email: str, password: str) -> Optional[User]:
         """
         Authenticate a user with email and password
         
@@ -22,7 +22,7 @@ class IAuthService(ABC):
         pass
     
     @abstractmethod
-    def get_or_create_google_user(self, google_id: str, email: str, first_name: str, last_name: str, role: Optional[str] = None, group_id: Optional[int] = None) -> Optional[User]:
+    async def get_or_create_google_user(self, google_id: str, email: str, first_name: str, last_name: str, role: Optional[str] = None, group_id: Optional[int] = None) -> Optional[User]:
         """
         Get or create a user with Google authentication data
         
@@ -40,7 +40,7 @@ class IAuthService(ABC):
         pass
     
     @abstractmethod
-    def verify_password(self, plain_password: str, hashed_password: str) -> bool:
+    async def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """
         Verify if the provided password matches the hashed password
         
@@ -54,7 +54,7 @@ class IAuthService(ABC):
         pass
     
     @abstractmethod
-    def get_password_hash(self, password: str) -> str:
+    async def get_password_hash(self, password: str) -> str:
         """
         Generate a password hash
         
@@ -67,7 +67,7 @@ class IAuthService(ABC):
         pass
     
     @abstractmethod
-    def change_password(self, user_id: int, new_password: str) -> bool:
+    async def change_password(self, user_id: int, new_password: str) -> bool:
         """
         Change a user's password
         
@@ -81,7 +81,7 @@ class IAuthService(ABC):
         pass
     
     @abstractmethod
-    def get_user_id_from_token(self, token: str) -> Optional[int]:
+    async def get_user_id_from_token(self, token: str) -> Optional[int]:
         """
         Extract user ID from JWT token
         
@@ -94,7 +94,7 @@ class IAuthService(ABC):
         pass
     
     @abstractmethod
-    def get_user_by_id(self, user_id: int) -> Optional[User]:
+    async def get_user_by_id(self, user_id: int) -> Optional[User]:
         """
         Get a user by ID
         

@@ -12,8 +12,10 @@ class Subject(Base):
     studyYear = Column(Integer, nullable=False)
     groupId = Column(Integer, ForeignKey("groups.id"), nullable=False)
     teacherId = Column(Integer, ForeignKey("users.id"), nullable=False)
+    assistantId = Column(Integer, ForeignKey("users.id"), nullable=False)
     
     # Relationships
     group = relationship("Group", back_populates="subjects")
     teacher = relationship("User", foreign_keys=[teacherId])
+    assistant = relationship("User", foreign_keys=[assistantId])
     schedules = relationship("Schedule", back_populates="subject")

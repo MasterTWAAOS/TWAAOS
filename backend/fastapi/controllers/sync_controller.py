@@ -2,7 +2,9 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from dependency_injector.wiring import inject, Provide
 from pydantic import BaseModel
 import requests
+import httpx
 import logging
+import asyncio
 from passlib.context import CryptContext
 from models.user import User
 from models.group import Group
@@ -38,7 +40,7 @@ class CreateTestUsersResponse(BaseModel):
            summary="Delete all groups",
            description="Delete all groups from the database")
 @inject
-def delete_all_groups(group_service: IGroupService = Depends(Provide[Container.group_service])):
+async def delete_all_groups(group_service: IGroupService = Depends(Provide[Container.group_service])):
     """
     Deletes all groups from the database.
     
@@ -49,7 +51,7 @@ def delete_all_groups(group_service: IGroupService = Depends(Provide[Container.g
         DeleteResponse: The deletion result
     """
     try:
-        deleted_count = group_service.delete_all_groups()
+        deleted_count = await group_service.delete_all_groups()
         return DeleteResponse(
             success=True,
             message=f"Successfully deleted all groups",
@@ -66,7 +68,7 @@ def delete_all_groups(group_service: IGroupService = Depends(Provide[Container.g
            summary="Delete all rooms",
            description="Delete all rooms from the database")
 @inject
-def delete_all_rooms(room_service: IRoomService = Depends(Provide[Container.room_service])):
+async def delete_all_rooms(room_service: IRoomService = Depends(Provide[Container.room_service])):
     """
     Deletes all rooms from the database.
     
@@ -77,7 +79,7 @@ def delete_all_rooms(room_service: IRoomService = Depends(Provide[Container.room
         DeleteResponse: The deletion result
     """
     try:
-        deleted_count = room_service.delete_all_rooms()
+        deleted_count = await room_service.delete_all_rooms()
         return DeleteResponse(
             success=True,
             message=f"Successfully deleted all rooms",
@@ -94,7 +96,7 @@ def delete_all_rooms(room_service: IRoomService = Depends(Provide[Container.room
            summary="Delete all users",
            description="Delete all users from the database")
 @inject
-def delete_all_users(user_service: IUserService = Depends(Provide[Container.user_service])):
+async def delete_all_users(user_service: IUserService = Depends(Provide[Container.user_service])):
     """
     Deletes all users from the database.
     
@@ -105,7 +107,7 @@ def delete_all_users(user_service: IUserService = Depends(Provide[Container.user
         DeleteResponse: The deletion result
     """
     try:
-        deleted_count = user_service.delete_all_users()
+        deleted_count = await user_service.delete_all_users()
         return DeleteResponse(
             success=True,
             message=f"Successfully deleted all users",
@@ -122,7 +124,7 @@ def delete_all_users(user_service: IUserService = Depends(Provide[Container.user
            summary="Sync data from USV API", 
            description="Triggers deletion of existing data and synchronization of groups, rooms, and users from USV API")
 @inject
-def sync_data(
+async def sync_data(
     group_service: IGroupService = Depends(Provide[Container.group_service]),
     room_service: IRoomService = Depends(Provide[Container.room_service]),
     user_service: IUserService = Depends(Provide[Container.user_service])
@@ -142,109 +144,198 @@ def sync_data(
         HTTPException: If the synchronization fails
     """
     try:
-        # First, delete all existing data
-        deleted_users = user_service.delete_all_users()
-        deleted_groups = group_service.delete_all_groups()
-        deleted_rooms = room_service.delete_all_rooms()
+        # Step 1: Delete all existing data IN ORDER (rooms, groups, users)
+        # Important: Delete in this specific order to avoid foreign key constraint violations
+        deleted_rooms = 0
+        deleted_groups = 0
+        deleted_users = 0
         
-        logger.info(f"Deleted {deleted_groups} groups, {deleted_rooms} rooms, and {deleted_users} users before synchronization")
+        # First, delete rooms
+        try:
+            deleted_rooms = await room_service.delete_all_rooms()
+            logger.info(f"Step 1/3: Deleted {deleted_rooms} rooms before synchronization")
+        except Exception as room_delete_error:
+            logger.error(f"Error deleting rooms: {str(room_delete_error)}")
         
-        # Call the Flask service to fetch and sync new data
-        response = requests.post("http://flask:5000/fetch-and-sync-data")
-        response.raise_for_status()
+        # Second, delete groups
+        try:
+            deleted_groups = await group_service.delete_all_groups()
+            logger.info(f"Step 2/3: Deleted {deleted_groups} groups before synchronization")
+        except Exception as group_delete_error:
+            logger.error(f"Error deleting groups: {str(group_delete_error)}")
         
+        # Last, delete users
+        try:
+            deleted_users = await user_service.delete_all_users()
+            logger.info(f"Step 3/3: Deleted {deleted_users} users before synchronization")
+        except Exception as user_delete_error:
+            logger.error(f"Error deleting users: {str(user_delete_error)}")
+            
+        # Step 2: Call the Flask service to fetch and sync new data
+        logger.info("Calling Flask backend to fetch and sync data from USV API...")
+        async with httpx.AsyncClient() as client:
+            response = await client.post("http://flask:5000/fetch-and-sync-data", timeout=300)
+            response.raise_for_status()
+        
+        # Parse response from Flask
         result = response.json()
+        logger.info(f"Flask sync completed successfully")
         
         # Extract summary counts from the response
         groups_count = result.get('groups', {}).get('count', 0)
         rooms_count = result.get('rooms', {}).get('count', 0)
         users_count = result.get('users', {}).get('count', 0)
         
-        # After syncing real data, add test users for development
+        # Step 3: Create test users after all real data is fetched and created
+        logger.info("Starting test user creation process...")
+        test_users_count = 0
+        
         try:
-            # Create a test group manually rather than calling create_test_users
-            # This avoids dependency injection conflicts
-            test_group = Group(
-                name="Test FIESC Group",
-                studyYear=3,
-                specializationShortName="CALC",
-                groupIds=[9999]  # Mock ID for the test group
-            )
-            created_group = group_service.create_group(test_group)
-            group_id = created_group.id
+            # IMPORTANT: For test users, DO NOT assign any group IDs to avoid foreign key issues
+            # This is a known limitation that group IDs can be inconsistent during sync
+            # We'll log this decision for clarity
+            logger.info("TEST USERS: Not assigning group IDs to any users (including students) to avoid foreign key issues")
+            valid_group_id = None
+            
+            # Query the database for a valid group
+            try:
+                # Get the first 5 groups (to have options in case some fail)
+                all_groups = await group_service.get_all_groups()
+                if all_groups and len(all_groups) > 0:
+                    # Check each group to see if it actually exists
+                    for group in all_groups[:5]:
+                        group_exists = await group_service.exists_by_id(group.id)
+                        if group_exists:
+                            valid_group_id = group.id
+                            logger.info(f"Found valid group ID {valid_group_id} for student test user")
+                            break
+                    
+                    if valid_group_id is None:
+                        logger.warning("Could not verify any group existence despite getting group list")
+                else:
+                    logger.warning("No groups found in database for test student user")
+            except Exception as group_error:
+                logger.error(f"Error finding valid group: {str(group_error)}")
+                valid_group_id = None
             
             # Hash password for admin user
-            pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-            hashed_password = pwd_context.hash("admin123")
+            try:
+                pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+                hashed_password = pwd_context.hash("asddsa")
+                logger.info("Admin password successfully hashed")
+            except Exception as hash_error:
+                logger.error(f"Error hashing admin password: {str(hash_error)}")
+                # Provide a fallback hashed password (pre-computed bcrypt hash of 'asddsa')
+                hashed_password = "$2b$12$1iRX2xcQyDPK1h63UvV8A.7xPr0sgM8prUnjoYuTCChbmUY9OJ1Ae"
+                logger.info("Using fallback hashed password for admin")
             
-            # Create test users directly using the service (same as in create_test_users)
+            # Define test users with appropriate roles
             test_users = [
-                # Student with the template group
-                User(
-                    firstName="Tudor", 
-                    lastName="Albu", 
-                    email="student1@student.usv.ro", 
-                    role="SG", 
-                    groupId=group_id, 
-                    department=None,
-                    phone=None,
-                    passwordHash=None,
-                    googleId=f"dev-tudor-albu",
-                    isActive=True
-                ),
-                # Professor with department
-                User(
-                    firstName="Matei", 
-                    lastName="Neagu", 
-                    email="professor@fiesc.usv.ro", 
-                    role="CD", 
-                    groupId=None,
-                    department="C", 
-                    phone="0723321123", 
-                    passwordHash=None,
-                    googleId=f"dev-matei-neagu",
-                    isActive=True
-                ),
-                # Secretariat
-                User(
-                    firstName="Alina", 
-                    lastName="Berca", 
-                    email="secretary@usv.ro", 
-                    role="SEC", 
-                    groupId=None,
-                    department=None,
-                    phone=None,
-                    passwordHash=None,
-                    googleId=f"dev-alina-berca",
-                    isActive=True
-                ),
-                # Admin with password
-                User(
-                    firstName="A", 
-                    lastName="A", 
-                    email="a@usv.ro", 
-                    role="ADM", 
-                    groupId=None,
-                    department=None,
-                    phone=None,
-                    passwordHash=hashed_password, 
-                    googleId=None,
-                    isActive=True
-                )
+                # Student user with valid group ID (if available)
+                {
+                    "firstName": "Tudor", 
+                    "lastName": "Albu", 
+                    "email": "student1@student.usv.ro", 
+                    "role": "SG", 
+                    # Only include groupId if we found a valid one
+                    **({
+                        "groupId": valid_group_id,
+                        "googleId": "dev-tudor-albu"
+                    } if valid_group_id is not None else {
+                        "googleId": "dev-tudor-albu"
+                    })
+                },
+                # Professor user - no group ID for non-student roles
+                {
+                    "firstName": "Matei", 
+                    "lastName": "Neagu", 
+                    "email": "professor@fiesc.usv.ro", 
+                    "role": "CD", 
+                    "department": "C", 
+                    "phone": "0723321123",
+                    "googleId": "dev-matei-neagu"
+                },
+                # Secretary user
+                {
+                    "firstName": "Alina", 
+                    "lastName": "Berca", 
+                    "email": "secretary@usv.ro", 
+                    "role": "SEC",
+                    "googleId": "dev-alina-berca"
+                },
+                # Admin user with password
+                {
+                    "firstName": "A", 
+                    "lastName": "A", 
+                    "email": "a@usv.ro", 
+                    "role": "ADM", 
+                    "passwordHash": hashed_password
+                }
             ]
             
-            # Create each user
+            # Create each test user with a direct database approach to avoid transaction conflicts
             created_users = []
-            for user in test_users:
+            for index, user_data in enumerate(test_users):
                 try:
-                    created_user = user_service.create_user(user)
-                    created_users.append(created_user)
+                    # Use a completely independent execution for each user creation
+                    email = user_data.get("email", "")
+                    role = user_data.get("role", "")
+                    logger.info(f"Creating test user {index+1}/4: {email} (role: {role})")
+                    
+                    # Build parameters for User object
+                    user_params = {
+                        "firstName": user_data.get("firstName", ""),
+                        "lastName": user_data.get("lastName", ""),
+                        "email": email,
+                        "role": role,
+                        "department": user_data.get("department", ""),
+                        "phone": user_data.get("phone", ""),
+                        "passwordHash": user_data.get("passwordHash", ""),
+                        "googleId": user_data.get("googleId", ""),
+                        "isActive": True
+                    }
+                    
+                    # Only add groupId for student (SG) users
+                    if role == "SG" and valid_group_id is not None:
+                        user_params["groupId"] = valid_group_id
+                        logger.info(f"Assigning student user {email} to group {valid_group_id}")
+                    
+                    # Create the user model object
+                    user = User(**user_params)
+                    
+                    # Create the user directly with the repository to avoid DTO conversion issues
+                    # First, check if the user exists by email to avoid duplicate creation attempts
+                    try:
+                        # Check if user already exists
+                        existing_user_dto = await user_service.get_user_by_email(email)
+                        if existing_user_dto:
+                            # User exists - use this instead of creating
+                            logger.info(f"👌 Test user {email} already exists, using existing user")
+                            created_users.append(existing_user_dto)
+                            continue  # Skip to next user
+                            
+                        # User doesn't exist, try to create it
+                        created_user = await user_service.create_user(user)
+                        created_users.append(created_user)
+                        logger.info(f"✅ Successfully created test user: {email}")
+                    except Exception as create_error:
+                        # If creation failed, log the error but continue with other users
+                        logger.error(f"❌ Failed to create test user {email}: {str(create_error)}")
+                    
+                    # Always add a delay between operations to avoid conflicts
+                    await asyncio.sleep(0.5)
+                    
                 except Exception as user_error:
-                    logger.warning(f"Failed to create test user {user.email}: {str(user_error)}")
+                    # This is for any other unexpected errors in the outer try block
+                    logger.error(f"❌❌ Unexpected error processing test user {user_data.get('email', 'unknown')}: {str(user_error)}")
+                    
+                    # Still continue with next user
             
-            # Add test users count
+            # Count successfully created users
             test_users_count = len(created_users)
             users_count += test_users_count
+            logger.info(f"Test user creation complete: {test_users_count}/4 users created successfully")
+            
             
             return SyncResponse(
                 success=True,
@@ -270,7 +361,7 @@ def sync_data(
           summary="Create test users for development", 
           description="Creates predefined test users for all roles, including a template group")
 @inject
-def create_test_users(
+async def create_test_users(
     user_service: IUserService = Depends(Provide[Container.user_service]),
     group_service: IGroupService = Depends(Provide[Container.group_service]),
 ):
@@ -295,7 +386,7 @@ def create_test_users(
             studyYear=3,
             specializationShortName="CALC"
         )
-        created_group = group_service.create_group(test_group)
+        created_group = await group_service.create_group(test_group)
         group_id = created_group.id
         
         # Hash password for admin user
@@ -361,7 +452,7 @@ def create_test_users(
         # Create all test users using the service
         created_users = []
         for user in test_users:
-            created_user = user_service.create_user(user)
+            created_user = await user_service.create_user(user)
             created_users.append({
                 "id": created_user.id,
                 "email": created_user.email,

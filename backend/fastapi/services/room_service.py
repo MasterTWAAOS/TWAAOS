@@ -9,21 +9,21 @@ class RoomService(IRoomService):
     def __init__(self, room_repository: IRoomRepository):
         self.room_repository = room_repository
 
-    def get_all_rooms(self) -> List[RoomResponse]:
-        rooms = self.room_repository.get_all()
+    async def get_all_rooms(self) -> List[RoomResponse]:
+        rooms = await self.room_repository.get_all()
         return [RoomResponse.model_validate(room) for room in rooms]
 
-    def get_room_by_id(self, room_id: int) -> Optional[RoomResponse]:
-        room = self.room_repository.get_by_id(room_id)
+    async def get_room_by_id(self, room_id: int) -> Optional[RoomResponse]:
+        room = await self.room_repository.get_by_id(room_id)
         if room:
             return RoomResponse.model_validate(room)
         return None
     
-    def get_rooms_by_building(self, building_name: str) -> List[RoomResponse]:
-        rooms = self.room_repository.get_by_building(building_name)
+    async def get_rooms_by_building(self, building_name: str) -> List[RoomResponse]:
+        rooms = await self.room_repository.get_by_building(building_name)
         return [RoomResponse.model_validate(room) for room in rooms]
 
-    def create_room(self, room_data: RoomCreate) -> RoomResponse:
+    async def create_room(self, room_data: RoomCreate) -> RoomResponse:
         # Create new room object
         room = Room(
             name=room_data.name,
@@ -34,11 +34,11 @@ class RoomService(IRoomService):
         )
         
         # Save to database
-        created_room = self.room_repository.create(room)
+        created_room = await self.room_repository.create(room)
         return RoomResponse.model_validate(created_room)
 
-    def update_room(self, room_id: int, room_data: RoomUpdate) -> Optional[RoomResponse]:
-        room = self.room_repository.get_by_id(room_id)
+    async def update_room(self, room_id: int, room_data: RoomUpdate) -> Optional[RoomResponse]:
+        room = await self.room_repository.get_by_id(room_id)
         if not room:
             return None
             
@@ -55,16 +55,16 @@ class RoomService(IRoomService):
             room.computers = room_data.computers
             
         # Save changes
-        updated_room = self.room_repository.update(room)
+        updated_room = await self.room_repository.update(room)
         return RoomResponse.model_validate(updated_room)
 
-    def delete_room(self, room_id: int) -> bool:
-        return self.room_repository.delete(room_id)
+    async def delete_room(self, room_id: int) -> bool:
+        return await self.room_repository.delete(room_id)
         
-    def delete_all_rooms(self) -> int:
+    async def delete_all_rooms(self) -> int:
         """Delete all rooms from the database.
         
         Returns:
             int: The number of rooms deleted
         """
-        return self.room_repository.delete_all()
+        return await self.room_repository.delete_all()

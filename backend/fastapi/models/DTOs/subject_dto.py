@@ -8,6 +8,7 @@ class SubjectBase(BaseModel):
     studyYear: int
     groupId: int
     teacherId: int
+    assistantId: int
 
 class SubjectCreate(SubjectBase):
     pass
@@ -19,6 +20,7 @@ class SubjectUpdate(BaseModel):
     studyYear: Optional[int] = None
     groupId: Optional[int] = None
     teacherId: Optional[int] = None
+    assistantId: Optional[int] = None
 
 class SubjectResponse(SubjectBase):
     id: int

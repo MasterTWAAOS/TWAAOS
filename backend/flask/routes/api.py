@@ -1,7 +1,9 @@
-"""API routes for the Flask application."""
-from flask import Blueprint, jsonify
-from flasgger import swag_from
+"""API routes for the Quart application (async Flask alternative)."""
+from quart import Blueprint, jsonify
+# Comment out swagger import since it's causing issues
+# from quart_swagger import swag_from
 import logging
+import asyncio
 from services.api_service import (
     fetch_faculties, 
     fetch_groups, 
@@ -27,114 +29,16 @@ logger = logging.getLogger(__name__)
 api_bp = Blueprint('api', __name__)
 
 @api_bp.route('/health', methods=['GET'])
-@swag_from({
-    'responses': {
-        200: {
-            'description': 'Simple health check to verify the service is running',
-            'schema': {
-                'type': 'object',
-                'properties': {
-                    'status': {'type': 'string'}
-                }
-            }
-        }
-    },
-    'summary': 'Health check endpoint',
-    'description': 'Simple endpoint to check if the service is up and running',
-    'tags': ['system']
-})
-def health_check():
+# Swagger documentation commented out to avoid dependency issues
+# @swag_from documentation was here
+async def health_check():
     """Simple health check endpoint"""
     return jsonify({"status": "healthy"})
 
 @api_bp.route('/fetch-and-sync-data', methods=['POST'])
-@swag_from({
-    'responses': {
-        200: {
-            'description': 'Successfully fetched and synchronized data',
-            'schema': {
-                'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'groups': {
-                        'type': 'object',
-                        'properties': {
-                            'count': {'type': 'integer'},
-                            'results': {
-                                'type': 'array',
-                                'items': {
-                                    'type': 'object',
-                                    'properties': {
-                                        'group': {'type': 'string'},
-                                        'status': {'type': 'string'},
-                                        'id': {'type': 'integer'}
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    'rooms': {
-                        'type': 'object',
-                        'properties': {
-                            'count': {'type': 'integer'},
-                            'results': {
-                                'type': 'array',
-                                'items': {
-                                    'type': 'object',
-                                    'properties': {
-                                        'room': {'type': 'string'},
-                                        'status': {'type': 'string'},
-                                        'id': {'type': 'integer'}
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    'users': {
-                        'type': 'object',
-                        'properties': {
-                            'count': {'type': 'integer'},
-                            'results': {
-                                'type': 'array',
-                                'items': {
-                                    'type': 'object',
-                                    'properties': {
-                                        'user': {'type': 'string'},
-                                        'status': {'type': 'string'},
-                                        'id': {'type': 'integer'}
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        404: {
-            'description': 'Required data not found',
-            'schema': {
-                'type': 'object',
-                'properties': {
-                    'error': {'type': 'string'}
-                }
-            }
-        },
-        500: {
-            'description': 'Server error during processing',
-            'schema': {
-                'type': 'object',
-                'properties': {
-                    'error': {'type': 'string'}
-                }
-            }
-        }
-    },
-    'summary': 'Fetch and synchronize data from USV to TWAAOS',
-    'description': 'Fetches faculty, group, room, and faculty staff data from USV API and sends it to the FastAPI application to be stored in the database.',
-    'tags': ['synchronization']
-})
-def fetch_and_sync_data():
+# Swagger documentation commented out to avoid dependency issues
+# @swag_from documentation was here
+async def fetch_and_sync_data():
     """Fetch data from USV APIs and sync it to the TWAAOS database via FastAPI
     
     Process:
@@ -149,7 +53,7 @@ def fetch_and_sync_data():
         # Part 1: Process Groups 
         # -----------------------
         # Step 1: Fetch faculties and find FIESC
-        faculties = fetch_faculties()
+        faculties = await fetch_faculties()
         fiesc_id = None
         group_results = []
         transformed_groups = []
@@ -165,7 +69,7 @@ def fetch_and_sync_data():
             logger.info(f"Found FIESC faculty with ID: {fiesc_id}")
             
             # Step 2: Fetch all groups and filter for FIESC
-            all_groups = fetch_groups()
+            all_groups = await fetch_groups()
             fiesc_groups = [group for group in all_groups if group.get("facultyId") == fiesc_id]
             
             if not fiesc_groups:
@@ -174,34 +78,34 @@ def fetch_and_sync_data():
                 logger.info(f"Found {len(fiesc_groups)} FIESC groups")
                 
                 # Step 3: Transform group data to match our API format
-                transformed_groups = transform_groups(fiesc_groups)
+                transformed_groups = await transform_groups(fiesc_groups)
                 
                 # Step 4: Send groups to FastAPI for storage
-                group_results = store_groups_in_db(transformed_groups)
+                group_results = await store_groups_in_db(transformed_groups)
         
         # Part 2: Process Rooms
         # ---------------------
         # Step 1: Fetch all rooms
-        all_rooms = fetch_rooms()
+        all_rooms = await fetch_rooms()
         logger.info(f"Fetched {len(all_rooms)} rooms from USV API")
         
         # Step 2: Transform room data to match our API format
-        transformed_rooms = transform_rooms(all_rooms)
+        transformed_rooms = await transform_rooms(all_rooms)
         
         # Step 3: Send rooms to FastAPI for storage
-        room_results = store_rooms_in_db(transformed_rooms)
+        room_results = await store_rooms_in_db(transformed_rooms)
         
         # Part 3: Process Faculty Staff (Users)
         # ------------------------------------
         # Step 1: Fetch all faculty staff
-        all_staff = fetch_faculty_staff()
+        all_staff = await fetch_faculty_staff()
         logger.info(f"Fetched {len(all_staff)} faculty staff from USV API")
         
         # Step 2: Transform staff data, filtering by faculty and department
-        transformed_staff = transform_faculty_staff(all_staff)
+        transformed_staff = await transform_faculty_staff(all_staff)
         
         # Step 3: Send faculty staff to FastAPI for storage
-        staff_results = store_faculty_staff_in_db(transformed_staff)
+        staff_results = await store_faculty_staff_in_db(transformed_staff)
         
         return jsonify({
             "success": True,

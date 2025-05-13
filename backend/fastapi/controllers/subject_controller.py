@@ -10,7 +10,7 @@ router = APIRouter(prefix="/subjects", tags=["subjects"])
 
 @router.get("", response_model=List[SubjectResponse], summary="Get all subjects", description="Retrieve a list of all subjects in the system")
 @inject
-def get_all_subjects(
+async def get_all_subjects(
     service: ISubjectService = Depends(Provide[Container.subject_service])
 ):
     """Get all subjects endpoint.
@@ -18,11 +18,11 @@ def get_all_subjects(
     Returns:
         List[SubjectResponse]: A list of all subjects
     """
-    return service.get_all_subjects()
+    return await service.get_all_subjects()
 
 @router.get("/{subject_id}", response_model=SubjectResponse, summary="Get subject by ID", description="Retrieve a specific subject by its ID")
 @inject
-def get_subject(
+async def get_subject(
     subject_id: int, 
     service: ISubjectService = Depends(Provide[Container.subject_service])
 ):
@@ -37,7 +37,7 @@ def get_subject(
     Raises:
         HTTPException: If the subject is not found
     """
-    subject = service.get_subject_by_id(subject_id)
+    subject = await service.get_subject_by_id(subject_id)
     if not subject:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -45,9 +45,9 @@ def get_subject(
         )
     return subject
 
-@router.get("/group/{group_id}", response_model=List[SubjectResponse], summary="Get subjects by group ID", description="Retrieve all subjects for a specific group")
+@router.get("/group/{group_id}", response_model=List[SubjectResponse], summary="Get subjects by group", description="Retrieve all subjects for a specific group")
 @inject
-def get_subjects_by_group(
+async def get_subjects_by_group(
     group_id: int, 
     service: ISubjectService = Depends(Provide[Container.subject_service])
 ):
@@ -59,11 +59,11 @@ def get_subjects_by_group(
     Returns:
         List[SubjectResponse]: A list of subjects for the specified group
     """
-    return service.get_subjects_by_group_id(group_id)
+    return await service.get_subjects_by_group_id(group_id)
 
-@router.get("/teacher/{teacher_id}", response_model=List[SubjectResponse], summary="Get subjects by teacher ID", description="Retrieve all subjects for a specific teacher")
+@router.get("/teacher/{teacher_id}", response_model=List[SubjectResponse], summary="Get subjects by teacher", description="Retrieve all subjects for a specific teacher")
 @inject
-def get_subjects_by_teacher(
+async def get_subjects_by_teacher(
     teacher_id: int, 
     service: ISubjectService = Depends(Provide[Container.subject_service])
 ):
@@ -75,11 +75,27 @@ def get_subjects_by_teacher(
     Returns:
         List[SubjectResponse]: A list of subjects for the specified teacher
     """
-    return service.get_subjects_by_teacher_id(teacher_id)
+    return await service.get_subjects_by_teacher_id(teacher_id)
 
-@router.post("", response_model=SubjectResponse, status_code=status.HTTP_201_CREATED, summary="Create new subject", description="Create a new subject in the system")
+@router.get("/assistant/{assistant_id}", response_model=List[SubjectResponse], summary="Get subjects by assistant", description="Retrieve all subjects for a specific assistant")
 @inject
-def create_subject(
+async def get_subjects_by_assistant(
+    assistant_id: int, 
+    service: ISubjectService = Depends(Provide[Container.subject_service])
+):
+    """Get subjects for a specific assistant.
+    
+    Args:
+        assistant_id (int): The ID of the assistant
+        
+    Returns:
+        List[SubjectResponse]: A list of subjects for the specified assistant
+    """
+    return await service.get_subjects_by_assistant_id(assistant_id)
+
+@router.post("", response_model=SubjectResponse, status_code=status.HTTP_201_CREATED, summary="Create subject", description="Create a new subject in the system")
+@inject
+async def create_subject(
     subject_data: SubjectCreate, 
     service: ISubjectService = Depends(Provide[Container.subject_service])
 ):
@@ -95,7 +111,7 @@ def create_subject(
         HTTPException: If validation fails for foreign keys
     """
     try:
-        return service.create_subject(subject_data)
+        return await service.create_subject(subject_data)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -104,7 +120,7 @@ def create_subject(
 
 @router.put("/{subject_id}", response_model=SubjectResponse, summary="Update subject", description="Update an existing subject's information")
 @inject
-def update_subject(
+async def update_subject(
     subject_id: int, 
     subject_data: SubjectUpdate, 
     service: ISubjectService = Depends(Provide[Container.subject_service])
@@ -122,12 +138,13 @@ def update_subject(
         HTTPException: If the subject is not found or validation fails
     """
     try:
-        updated_subject = service.update_subject(subject_id, subject_data)
-        if not updated_subject:
+        subject = await service.get_subject_by_id(subject_id)
+        if not subject:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Subject with ID {subject_id} not found"
             )
+        updated_subject = await service.update_subject(subject_id, subject_data)
         return updated_subject
     except ValueError as e:
         raise HTTPException(
@@ -137,7 +154,7 @@ def update_subject(
 
 @router.delete("/{subject_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete subject", description="Delete a subject from the system")
 @inject
-def delete_subject(
+async def delete_subject(
     subject_id: int, 
     service: ISubjectService = Depends(Provide[Container.subject_service])
 ):

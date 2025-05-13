@@ -1,6 +1,6 @@
 from passlib.context import CryptContext
 from typing import Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.abstract.auth_service_interface import IAuthService
 from models.user import User
@@ -13,21 +13,21 @@ class AuthService(IAuthService):
     Implementation of authentication service
     """
     
-    def __init__(self, user_repository: IUserRepository, group_repository: IGroupRepository, db: Session):
+    def __init__(self, user_repository: IUserRepository, group_repository: IGroupRepository, db: AsyncSession):
         """
         Initialize the auth service with a user repository, group repository and database session
         
         Args:
             user_repository: Repository for user operations
             group_repository: Repository for group operations
-            db: SQLAlchemy database session
+            db: SQLAlchemy async database session
         """
         self.user_repository = user_repository
         self.group_repository = group_repository
         self.db = db
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     
-    def authenticate_user(self, email: str, password: str) -> Optional[User]:
+    async def authenticate_user(self, email: str, password: str) -> Optional[User]:
         """
         Authenticate a user with email and password
         
@@ -38,17 +38,17 @@ class AuthService(IAuthService):
         Returns:
             Optional[User]: The authenticated user if successful, None otherwise
         """
-        user = self.user_repository.get_by_email(email)
+        user = await self.user_repository.get_by_email(email)
         
         if not user or not user.passwordHash:
             return None
         
-        if not self.verify_password(password, user.passwordHash):
+        if not await self.verify_password(password, user.passwordHash):
             return None
         
         return user
     
-    def get_or_create_google_user(self, google_id: str, email: str, first_name: str, last_name: str, role: Optional[str] = None, group_id: Optional[int] = None) -> Optional[User]:
+    async def get_or_create_google_user(self, google_id: str, email: str, first_name: str, last_name: str, role: Optional[str] = None, group_id: Optional[int] = None) -> Optional[User]:
         """
         Get or create a user with Google authentication data
         
@@ -64,19 +64,19 @@ class AuthService(IAuthService):
             Optional[User]: The user object if found or created, None otherwise
         """
         # Try to find user by google_id first
-        user = self.user_repository.get_by_google_id(google_id)
+        user = await self.user_repository.get_by_google_id(google_id)
         
         if user:
             return user
         
         # Try to find user by email
-        user = self.user_repository.get_by_email(email)
+        user = await self.user_repository.get_by_email(email)
         
         if user:
             # Update user with google_id if not already set
             if not user.googleId:
                 user.googleId = google_id
-                self.db.commit()
+                await self.db.commit()
             return user
         
         # If we have a valid role from the controller (based on email domain validation),
@@ -88,7 +88,7 @@ class AuthService(IAuthService):
             assigned_group_id = None
             if role == "SG" and group_id is not None:
                 # Use the repository to check if the group exists
-                if self.group_repository.exists_by_id(group_id):
+                if await self.group_repository.exists_by_id(group_id):
                     assigned_group_id = group_id
                 else:
                     print(f"Group ID {group_id} does not exist in the database. Creating user without group assignment.")
@@ -103,13 +103,13 @@ class AuthService(IAuthService):
                 groupId=assigned_group_id  # Only assign if we confirmed it exists
             )
             
-            created_user = self.user_repository.create(new_user)
+            created_user = await self.user_repository.create(new_user)
             return created_user
         
         # If email domain doesn't match any of our criteria, we don't create a user
         return None
     
-    def verify_password(self, plain_password: str, hashed_password: str) -> bool:
+    async def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """
         Verify if the provided password matches the hashed password
         
@@ -122,7 +122,7 @@ class AuthService(IAuthService):
         """
         return self.pwd_context.verify(plain_password, hashed_password)
     
-    def get_password_hash(self, password: str) -> str:
+    async def get_password_hash(self, password: str) -> str:
         """
         Generate a password hash
         
@@ -134,7 +134,7 @@ class AuthService(IAuthService):
         """
         return self.pwd_context.hash(password)
     
-    def change_password(self, user_id: int, new_password: str) -> bool:
+    async def change_password(self, user_id: int, new_password: str) -> bool:
         """
         Change a user's password
         
@@ -145,18 +145,18 @@ class AuthService(IAuthService):
         Returns:
             bool: True if the password was changed successfully, False otherwise
         """
-        user = self.user_repository.get_by_id(user_id)
+        user = await self.user_repository.get_by_id(user_id)
         
         if not user:
             return False
         
-        hashed_password = self.get_password_hash(new_password)
+        hashed_password = await self.get_password_hash(new_password)
         user.passwordHash = hashed_password
         
-        self.db.commit()
+        await self.db.commit()
         return True
     
-    def get_user_id_from_token(self, token: str) -> Optional[int]:
+    async def get_user_id_from_token(self, token: str) -> Optional[int]:
         """
         Extract user ID from JWT token
         
@@ -166,7 +166,7 @@ class AuthService(IAuthService):
         Returns:
             Optional[int]: The user ID if the token is valid, None otherwise
         """
-        payload = decode_access_token(token)
+        payload = await decode_access_token(token)
         
         if not payload or "sub" not in payload:
             return None
@@ -176,7 +176,7 @@ class AuthService(IAuthService):
         except (ValueError, TypeError):
             return None
     
-    def get_user_by_id(self, user_id: int) -> Optional[User]:
+    async def get_user_by_id(self, user_id: int) -> Optional[User]:
         """
         Get a user by ID
         
@@ -186,4 +186,4 @@ class AuthService(IAuthService):
         Returns:
             Optional[User]: The user if found, None otherwise
         """
-        return self.user_repository.get_by_id(user_id)
+        return await self.user_repository.get_by_id(user_id)

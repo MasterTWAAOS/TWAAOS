@@ -7,7 +7,6 @@ class Schedule(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     subjectId = Column(Integer, ForeignKey("subjects.id"), nullable=False)
-    assistantId = Column(Integer, ForeignKey("users.id"), nullable=False)
     roomId = Column(Integer, ForeignKey("rooms.id"), nullable=False)
     date = Column(Date, nullable=False)
     startTime = Column(Time, nullable=False)
@@ -16,5 +15,4 @@ class Schedule(Base):
     
     # Relationships
     subject = relationship("Subject", back_populates="schedules")
-    assistant = relationship("User", foreign_keys=[assistantId])
     room = relationship("Room", back_populates="schedules")

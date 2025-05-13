@@ -6,7 +6,7 @@ from config.settings import get_settings
 
 settings = get_settings()
 
-def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+async def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
     """
     Create a JWT access token
     
@@ -29,7 +29,7 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
     
     return encoded_jwt
 
-def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
+async def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
     """
     Decode a JWT access token
     

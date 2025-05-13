@@ -1,5 +1,5 @@
-"""Services for fetching data from external APIs."""
-import requests
+"""Services for fetching data from external APIs using async patterns."""
+import httpx
 from config.settings import (
     FACULTY_ENDPOINT, 
     GROUPS_ENDPOINT, 
@@ -8,30 +8,34 @@ from config.settings import (
     logger
 )
 
-def fetch_faculties():
-    """Fetch faculty data from USV API"""
+async def fetch_faculties():
+    """Fetch faculty data from USV API using async HTTP requests"""
     logger.info("Fetching faculties from USV API")
-    response = requests.get(FACULTY_ENDPOINT)
-    response.raise_for_status()  # Raise exception for 4XX/5XX responses
-    return response.json()
+    async with httpx.AsyncClient() as client:
+        response = await client.get(FACULTY_ENDPOINT, timeout=30)
+        response.raise_for_status()  # Raise exception for 4XX/5XX responses
+        return response.json()
 
-def fetch_groups():
-    """Fetch group data from USV API"""
+async def fetch_groups():
+    """Fetch group data from USV API using async HTTP requests"""
     logger.info("Fetching groups from USV API")
-    response = requests.get(GROUPS_ENDPOINT)
-    response.raise_for_status()  # Raise exception for 4XX/5XX responses
-    return response.json()
+    async with httpx.AsyncClient() as client:
+        response = await client.get(GROUPS_ENDPOINT, timeout=30)
+        response.raise_for_status()  # Raise exception for 4XX/5XX responses
+        return response.json()
 
-def fetch_rooms():
-    """Fetch room data from USV API"""
+async def fetch_rooms():
+    """Fetch room data from USV API using async HTTP requests"""
     logger.info("Fetching rooms from USV API")
-    response = requests.get(ROOMS_ENDPOINT)
-    response.raise_for_status()  # Raise exception for 4XX/5XX responses
-    return response.json()
+    async with httpx.AsyncClient() as client:
+        response = await client.get(ROOMS_ENDPOINT, timeout=30)
+        response.raise_for_status()  # Raise exception for 4XX/5XX responses
+        return response.json()
 
-def fetch_faculty_staff():
-    """Fetch faculty staff data from USV API"""
+async def fetch_faculty_staff():
+    """Fetch faculty staff data from USV API using async HTTP requests"""
     logger.info("Fetching faculty staff from USV API")
-    response = requests.get(FACULTY_STAFF_ENDPOINT)
-    response.raise_for_status()  # Raise exception for 4XX/5XX responses
-    return response.json()
+    async with httpx.AsyncClient() as client:
+        response = await client.get(FACULTY_STAFF_ENDPOINT, timeout=30)
+        response.raise_for_status()  # Raise exception for 4XX/5XX responses
+        return response.json()

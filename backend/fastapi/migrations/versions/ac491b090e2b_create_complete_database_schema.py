@@ -1,8 +1,8 @@
 """Create complete database schema
 
-Revision ID: aa6b3542caef
+Revision ID: ac491b090e2b
 Revises: 
-Create Date: 2025-05-13 10:32:05.864756
+Create Date: 2025-05-13 10:59:33.552206
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'aa6b3542caef'
+revision = 'ac491b090e2b'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -83,6 +83,8 @@ def upgrade() -> None:
     sa.Column('studyYear', sa.Integer(), nullable=False),
     sa.Column('groupId', sa.Integer(), nullable=False),
     sa.Column('teacherId', sa.Integer(), nullable=False),
+    sa.Column('assistantId', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['assistantId'], ['users.id'], ),
     sa.ForeignKeyConstraint(['groupId'], ['groups.id'], ),
     sa.ForeignKeyConstraint(['teacherId'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -91,13 +93,11 @@ def upgrade() -> None:
     op.create_table('schedules',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('subjectId', sa.Integer(), nullable=False),
-    sa.Column('assistantId', sa.Integer(), nullable=False),
     sa.Column('roomId', sa.Integer(), nullable=False),
     sa.Column('date', sa.Date(), nullable=False),
     sa.Column('startTime', sa.Time(), nullable=False),
     sa.Column('endTime', sa.Time(), nullable=False),
     sa.Column('status', sa.String(), nullable=False),
-    sa.ForeignKeyConstraint(['assistantId'], ['users.id'], ),
     sa.ForeignKeyConstraint(['roomId'], ['rooms.id'], ),
     sa.ForeignKeyConstraint(['subjectId'], ['subjects.id'], ),
     sa.PrimaryKeyConstraint('id')

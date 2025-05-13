@@ -15,25 +15,29 @@ class SubjectService(ISubjectService):
         self.group_repository = group_repository
         self.user_repository = user_repository
 
-    def get_all_subjects(self) -> List[SubjectResponse]:
-        subjects = self.subject_repository.get_all()
+    async def get_all_subjects(self) -> List[SubjectResponse]:
+        subjects = await self.subject_repository.get_all()
         return [SubjectResponse.model_validate(subject) for subject in subjects]
 
-    def get_subject_by_id(self, subject_id: int) -> Optional[SubjectResponse]:
-        subject = self.subject_repository.get_by_id(subject_id)
+    async def get_subject_by_id(self, subject_id: int) -> Optional[SubjectResponse]:
+        subject = await self.subject_repository.get_by_id(subject_id)
         if subject:
             return SubjectResponse.model_validate(subject)
         return None
     
-    def get_subjects_by_group_id(self, group_id: int) -> List[SubjectResponse]:
-        subjects = self.subject_repository.get_by_group_id(group_id)
+    async def get_subjects_by_group_id(self, group_id: int) -> List[SubjectResponse]:
+        subjects = await self.subject_repository.get_by_group_id(group_id)
         return [SubjectResponse.model_validate(subject) for subject in subjects]
     
-    def get_subjects_by_teacher_id(self, teacher_id: int) -> List[SubjectResponse]:
-        subjects = self.subject_repository.get_by_teacher_id(teacher_id)
+    async def get_subjects_by_teacher_id(self, teacher_id: int) -> List[SubjectResponse]:
+        subjects = await self.subject_repository.get_by_teacher_id(teacher_id)
         return [SubjectResponse.model_validate(subject) for subject in subjects]
         
-    def validate_group_id(self, group_id: int) -> Tuple[bool, Optional[str]]:
+    async def get_subjects_by_assistant_id(self, assistant_id: int) -> List[SubjectResponse]:
+        subjects = await self.subject_repository.get_by_assistant_id(assistant_id)
+        return [SubjectResponse.model_validate(subject) for subject in subjects]
+        
+    async def validate_group_id(self, group_id: int) -> Tuple[bool, Optional[str]]:
         """Validates if the group_id exists.
         
         Args:
@@ -45,13 +49,13 @@ class SubjectService(ISubjectService):
             error_message: Description of the error if validation fails, None otherwise
         """
         # Check if group exists
-        if not self.group_repository.exists_by_id(group_id):
+        if not await self.group_repository.exists_by_id(group_id):
             return False, f"Group with ID {group_id} does not exist"
         
         # All checks passed
         return True, None
         
-    def validate_teacher_id(self, teacher_id: int) -> Tuple[bool, Optional[str]]:
+    async def validate_teacher_id(self, teacher_id: int) -> Tuple[bool, Optional[str]]:
         """Validates if the teacher_id exists and belongs to a user with role 'CD'.
         
         Args:
@@ -63,7 +67,7 @@ class SubjectService(ISubjectService):
             error_message: Description of the error if validation fails, None otherwise
         """
         # Check if teacher exists
-        teacher = self.user_repository.get_by_id(teacher_id)
+        teacher = await self.user_repository.get_by_id(teacher_id)
         if not teacher:
             return False, f"User with ID {teacher_id} does not exist"
             
@@ -73,15 +77,43 @@ class SubjectService(ISubjectService):
         
         # All checks passed
         return True, None
+        
+    async def validate_assistant_id(self, assistant_id: int) -> Tuple[bool, Optional[str]]:
+        """Validates if the assistant_id exists and belongs to a user with role 'CD'.
+        
+        Args:
+            assistant_id: The assistant ID to validate
+            
+        Returns:
+            Tuple containing (is_valid, error_message)
+            is_valid: True if validation passes, False otherwise
+            error_message: Description of the error if validation fails, None otherwise
+        """
+        # Check if assistant exists
+        assistant = await self.user_repository.get_by_id(assistant_id)
+        if not assistant:
+            return False, f"User with ID {assistant_id} does not exist"
+            
+        # Check if user is an assistant (CD role)
+        if assistant.role != 'CD':
+            return False, f"User with ID {assistant_id} is not an assistant (role 'CD')"
+        
+        # All checks passed
+        return True, None
 
-    def create_subject(self, subject_data: SubjectCreate) -> SubjectResponse:
+    async def create_subject(self, subject_data: SubjectCreate) -> SubjectResponse:
         # Validate groupId
-        is_valid, error_message = self.validate_group_id(subject_data.groupId)
+        is_valid, error_message = await self.validate_group_id(subject_data.groupId)
         if not is_valid:
             raise ValueError(error_message)
             
         # Validate teacherId
-        is_valid, error_message = self.validate_teacher_id(subject_data.teacherId)
+        is_valid, error_message = await self.validate_teacher_id(subject_data.teacherId)
+        if not is_valid:
+            raise ValueError(error_message)
+            
+        # Validate assistantId
+        is_valid, error_message = await self.validate_assistant_id(subject_data.assistantId)
         if not is_valid:
             raise ValueError(error_message)
         
@@ -92,27 +124,34 @@ class SubjectService(ISubjectService):
             studyProgram=subject_data.studyProgram,
             studyYear=subject_data.studyYear,
             groupId=subject_data.groupId,
-            teacherId=subject_data.teacherId
+            teacherId=subject_data.teacherId,
+            assistantId=subject_data.assistantId
         )
         
         # Save to database
-        created_subject = self.subject_repository.create(subject)
+        created_subject = await self.subject_repository.create(subject)
         return SubjectResponse.model_validate(created_subject)
 
-    def update_subject(self, subject_id: int, subject_data: SubjectUpdate) -> Optional[SubjectResponse]:
-        subject = self.subject_repository.get_by_id(subject_id)
+    async def update_subject(self, subject_id: int, subject_data: SubjectUpdate) -> Optional[SubjectResponse]:
+        subject = await self.subject_repository.get_by_id(subject_id)
         if not subject:
             return None
             
         # Validate groupId if provided
         if subject_data.groupId is not None:
-            is_valid, error_message = self.validate_group_id(subject_data.groupId)
+            is_valid, error_message = await self.validate_group_id(subject_data.groupId)
             if not is_valid:
                 raise ValueError(error_message)
                 
         # Validate teacherId if provided
         if subject_data.teacherId is not None:
-            is_valid, error_message = self.validate_teacher_id(subject_data.teacherId)
+            is_valid, error_message = await self.validate_teacher_id(subject_data.teacherId)
+            if not is_valid:
+                raise ValueError(error_message)
+                
+        # Validate assistantId if provided
+        if subject_data.assistantId is not None:
+            is_valid, error_message = await self.validate_assistant_id(subject_data.assistantId)
             if not is_valid:
                 raise ValueError(error_message)
             
@@ -129,10 +168,12 @@ class SubjectService(ISubjectService):
             subject.groupId = subject_data.groupId
         if subject_data.teacherId is not None:
             subject.teacherId = subject_data.teacherId
+        if subject_data.assistantId is not None:
+            subject.assistantId = subject_data.assistantId
             
         # Save changes
-        updated_subject = self.subject_repository.update(subject)
+        updated_subject = await self.subject_repository.update(subject)
         return SubjectResponse.model_validate(updated_subject)
 
-    def delete_subject(self, subject_id: int) -> bool:
-        return self.subject_repository.delete(subject_id)
+    async def delete_subject(self, subject_id: int) -> bool:
+        return await self.subject_repository.delete(subject_id)

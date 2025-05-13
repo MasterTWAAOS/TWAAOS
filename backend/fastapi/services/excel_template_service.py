@@ -9,23 +9,23 @@ class ExcelTemplateService(IExcelTemplateService):
     def __init__(self, template_repository: IExcelTemplateRepository):
         self.template_repository = template_repository
 
-    def get_all_templates(self) -> List[ExcelTemplateResponse]:
-        templates = self.template_repository.get_all()
+    async def get_all_templates(self) -> List[ExcelTemplateResponse]:
+        templates = await self.template_repository.get_all()
         return [ExcelTemplateResponse.model_validate(template) for template in templates]
 
-    def get_template_by_id(self, template_id: int) -> Optional[ExcelTemplateResponse]:
-        template = self.template_repository.get_by_id(template_id)
+    async def get_template_by_id(self, template_id: int) -> Optional[ExcelTemplateResponse]:
+        template = await self.template_repository.get_by_id(template_id)
         if template:
             return ExcelTemplateResponse.model_validate(template)
         return None
     
-    def get_template_by_name(self, name: str) -> Optional[ExcelTemplateResponse]:
-        template = self.template_repository.get_by_name(name)
+    async def get_template_by_name(self, name: str) -> Optional[ExcelTemplateResponse]:
+        template = await self.template_repository.get_by_name(name)
         if template:
             return ExcelTemplateResponse.model_validate(template)
         return None
 
-    def create_template(self, template_data: ExcelTemplateCreate) -> ExcelTemplateResponse:
+    async def create_template(self, template_data: ExcelTemplateCreate) -> ExcelTemplateResponse:
         # Create new template object
         template = ExcelTemplate(
             name=template_data.name,
@@ -34,11 +34,11 @@ class ExcelTemplateService(IExcelTemplateService):
         )
         
         # Save to database
-        created_template = self.template_repository.create(template)
+        created_template = await self.template_repository.create(template)
         return ExcelTemplateResponse.model_validate(created_template)
 
-    def update_template(self, template_id: int, template_data: ExcelTemplateUpdate) -> Optional[ExcelTemplateResponse]:
-        template = self.template_repository.get_by_id(template_id)
+    async def update_template(self, template_id: int, template_data: ExcelTemplateUpdate) -> Optional[ExcelTemplateResponse]:
+        template = await self.template_repository.get_by_id(template_id)
         if not template:
             return None
             
@@ -51,8 +51,8 @@ class ExcelTemplateService(IExcelTemplateService):
             template.description = template_data.description
             
         # Save changes
-        updated_template = self.template_repository.update(template)
+        updated_template = await self.template_repository.update(template)
         return ExcelTemplateResponse.model_validate(updated_template)
 
-    def delete_template(self, template_id: int) -> bool:
-        return self.template_repository.delete(template_id)
+    async def delete_template(self, template_id: int) -> bool:
+        return await self.template_repository.delete(template_id)

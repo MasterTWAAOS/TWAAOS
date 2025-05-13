@@ -1,40 +1,45 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Optional
 
 from models.notification import Notification
 from repositories.abstract.notification_repository_interface import INotificationRepository
 
 class NotificationRepository(INotificationRepository):
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
-    def get_all(self) -> List[Notification]:
-        return self.db.query(Notification).all()
+    async def get_all(self) -> List[Notification]:
+        result = await self.db.execute(select(Notification))
+        return result.scalars().all()
 
-    def get_by_id(self, notification_id: int) -> Optional[Notification]:
-        return self.db.query(Notification).filter(Notification.id == notification_id).first()
+    async def get_by_id(self, notification_id: int) -> Optional[Notification]:
+        result = await self.db.execute(select(Notification).filter(Notification.id == notification_id))
+        return result.scalar_one_or_none()
     
-    def get_by_user_id(self, user_id: int) -> List[Notification]:
-        return self.db.query(Notification).filter(Notification.userId == user_id).all()
+    async def get_by_user_id(self, user_id: int) -> List[Notification]:
+        result = await self.db.execute(select(Notification).filter(Notification.userId == user_id))
+        return result.scalars().all()
     
-    def get_by_status(self, status: str) -> List[Notification]:
-        return self.db.query(Notification).filter(Notification.status == status).all()
+    async def get_by_status(self, status: str) -> List[Notification]:
+        result = await self.db.execute(select(Notification).filter(Notification.status == status))
+        return result.scalars().all()
 
-    def create(self, notification: Notification) -> Notification:
+    async def create(self, notification: Notification) -> Notification:
         self.db.add(notification)
-        self.db.commit()
-        self.db.refresh(notification)
+        await self.db.commit()
+        await self.db.refresh(notification)
         return notification
 
-    def update(self, notification: Notification) -> Notification:
-        self.db.commit()
-        self.db.refresh(notification)
+    async def update(self, notification: Notification) -> Notification:
+        await self.db.commit()
+        await self.db.refresh(notification)
         return notification
 
-    def delete(self, notification_id: int) -> bool:
-        notification = self.get_by_id(notification_id)
+    async def delete(self, notification_id: int) -> bool:
+        notification = await self.get_by_id(notification_id)
         if notification:
-            self.db.delete(notification)
-            self.db.commit()
+            await self.db.delete(notification)
+            await self.db.commit()
             return True
         return False

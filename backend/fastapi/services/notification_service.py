@@ -13,21 +13,21 @@ class NotificationService(INotificationService):
         self.notification_repository = notification_repository
         self.user_repository = user_repository
 
-    def get_all_notifications(self) -> List[NotificationResponse]:
-        notifications = self.notification_repository.get_all()
+    async def get_all_notifications(self) -> List[NotificationResponse]:
+        notifications = await self.notification_repository.get_all()
         return [NotificationResponse.model_validate(notification) for notification in notifications]
 
-    def get_notification_by_id(self, notification_id: int) -> Optional[NotificationResponse]:
-        notification = self.notification_repository.get_by_id(notification_id)
+    async def get_notification_by_id(self, notification_id: int) -> Optional[NotificationResponse]:
+        notification = await self.notification_repository.get_by_id(notification_id)
         if notification:
             return NotificationResponse.model_validate(notification)
         return None
     
-    def get_notifications_by_user_id(self, user_id: int) -> List[NotificationResponse]:
-        notifications = self.notification_repository.get_by_user_id(user_id)
+    async def get_notifications_by_user_id(self, user_id: int) -> List[NotificationResponse]:
+        notifications = await self.notification_repository.get_by_user_id(user_id)
         return [NotificationResponse.model_validate(notification) for notification in notifications]
         
-    def validate_user_id(self, user_id: int) -> Tuple[bool, Optional[str]]:
+    async def validate_user_id(self, user_id: int) -> Tuple[bool, Optional[str]]:
         """Validates if the user_id exists.
         
         Args:
@@ -39,20 +39,20 @@ class NotificationService(INotificationService):
             error_message: Description of the error if validation fails, None otherwise
         """
         # Check if user exists
-        user = self.user_repository.get_by_id(user_id)
+        user = await self.user_repository.get_by_id(user_id)
         if not user:
             return False, f"User with ID {user_id} does not exist"
         
         # All checks passed
         return True, None
     
-    def get_notifications_by_status(self, status: str) -> List[NotificationResponse]:
-        notifications = self.notification_repository.get_by_status(status)
+    async def get_notifications_by_status(self, status: str) -> List[NotificationResponse]:
+        notifications = await self.notification_repository.get_by_status(status)
         return [NotificationResponse.model_validate(notification) for notification in notifications]
 
-    def create_notification(self, notification_data: NotificationCreate) -> NotificationResponse:
+    async def create_notification(self, notification_data: NotificationCreate) -> NotificationResponse:
         # Validate user_id
-        is_valid, error_message = self.validate_user_id(notification_data.userId)
+        is_valid, error_message = await self.validate_user_id(notification_data.userId)
         if not is_valid:
             raise ValueError(error_message)
             
@@ -65,17 +65,17 @@ class NotificationService(INotificationService):
         )
         
         # Save to database
-        created_notification = self.notification_repository.create(notification)
+        created_notification = await self.notification_repository.create(notification)
         return NotificationResponse.model_validate(created_notification)
 
-    def update_notification(self, notification_id: int, notification_data: NotificationUpdate) -> Optional[NotificationResponse]:
-        notification = self.notification_repository.get_by_id(notification_id)
+    async def update_notification(self, notification_id: int, notification_data: NotificationUpdate) -> Optional[NotificationResponse]:
+        notification = await self.notification_repository.get_by_id(notification_id)
         if not notification:
             return None
             
         # Validate user_id if provided
         if notification_data.userId is not None:
-            is_valid, error_message = self.validate_user_id(notification_data.userId)
+            is_valid, error_message = await self.validate_user_id(notification_data.userId)
             if not is_valid:
                 raise ValueError(error_message)
             
@@ -88,17 +88,17 @@ class NotificationService(INotificationService):
             notification.status = notification_data.status
             
         # Save changes
-        updated_notification = self.notification_repository.update(notification)
+        updated_notification = await self.notification_repository.update(notification)
         return NotificationResponse.model_validate(updated_notification)
 
-    def delete_notification(self, notification_id: int) -> bool:
-        return self.notification_repository.delete(notification_id)
+    async def delete_notification(self, notification_id: int) -> bool:
+        return await self.notification_repository.delete(notification_id)
     
-    def mark_as_read(self, notification_id: int) -> Optional[NotificationResponse]:
-        notification = self.notification_repository.get_by_id(notification_id)
+    async def mark_as_read(self, notification_id: int) -> Optional[NotificationResponse]:
+        notification = await self.notification_repository.get_by_id(notification_id)
         if not notification:
             return None
         
         notification.status = "citit"
-        updated_notification = self.notification_repository.update(notification)
+        updated_notification = await self.notification_repository.update(notification)
         return NotificationResponse.model_validate(updated_notification)

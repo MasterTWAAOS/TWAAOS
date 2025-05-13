@@ -10,7 +10,7 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 @router.get("", response_model=List[RoomResponse], summary="Get all rooms", description="Retrieve a list of all rooms in the system")
 @inject
-def get_all_rooms(
+async def get_all_rooms(
     service: IRoomService = Depends(Provide[Container.room_service])
 ):
     """Get all rooms endpoint.
@@ -18,11 +18,11 @@ def get_all_rooms(
     Returns:
         List[RoomResponse]: A list of all rooms
     """
-    return service.get_all_rooms()
+    return await service.get_all_rooms()
 
 @router.get("/{room_id}", response_model=RoomResponse, summary="Get room by ID", description="Retrieve a specific room by its ID")
 @inject
-def get_room(
+async def get_room(
     room_id: int, 
     service: IRoomService = Depends(Provide[Container.room_service])
 ):
@@ -37,7 +37,7 @@ def get_room(
     Raises:
         HTTPException: If the room is not found
     """
-    room = service.get_room_by_id(room_id)
+    room = await service.get_room_by_id(room_id)
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -45,9 +45,9 @@ def get_room(
         )
     return room
 
-@router.get("/building/{building_name}", response_model=List[RoomResponse], summary="Get rooms by building", description="Retrieve all rooms in a specific building")
+@router.get("/building/{building_name}", response_model=List[RoomResponse], summary="Get rooms by building", description="Retrieve a list of all rooms in a specific building")
 @inject
-def get_rooms_by_building(
+async def get_rooms_by_building(
     building_name: str, 
     service: IRoomService = Depends(Provide[Container.room_service])
 ):
@@ -59,11 +59,11 @@ def get_rooms_by_building(
     Returns:
         List[RoomResponse]: A list of rooms in the specified building
     """
-    return service.get_rooms_by_building(building_name)
+    return await service.get_rooms_by_building(building_name)
 
-@router.post("", response_model=RoomResponse, status_code=status.HTTP_201_CREATED, summary="Create new room", description="Create a new room in the system")
+@router.post("", response_model=RoomResponse, status_code=status.HTTP_201_CREATED, summary="Create room", description="Create a new room record")
 @inject
-def create_room(
+async def create_room(
     room_data: RoomCreate, 
     service: IRoomService = Depends(Provide[Container.room_service])
 ):
@@ -75,11 +75,11 @@ def create_room(
     Returns:
         RoomResponse: The created room details
     """
-    return service.create_room(room_data)
+    return await service.create_room(room_data)
 
-@router.put("/{room_id}", response_model=RoomResponse, summary="Update room", description="Update an existing room's information")
+@router.put("/{room_id}", response_model=RoomResponse, summary="Update room", description="Update an existing room's details")
 @inject
-def update_room(
+async def update_room(
     room_id: int, 
     room_data: RoomUpdate, 
     service: IRoomService = Depends(Provide[Container.room_service])
@@ -96,7 +96,7 @@ def update_room(
     Raises:
         HTTPException: If the room is not found
     """
-    updated_room = service.update_room(room_id, room_data)
+    updated_room = await service.update_room(room_id, room_data)
     if not updated_room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -104,9 +104,9 @@ def update_room(
         )
     return updated_room
 
-@router.delete("/{room_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete room", description="Delete a room from the system")
+@router.delete("/{room_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete room", description="Delete a room permanently")
 @inject
-def delete_room(
+async def delete_room(
     room_id: int, 
     service: IRoomService = Depends(Provide[Container.room_service])
 ):
