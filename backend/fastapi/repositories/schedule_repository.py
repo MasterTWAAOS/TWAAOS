@@ -15,11 +15,8 @@ class ScheduleRepository(IScheduleRepository):
     def get_by_id(self, schedule_id: int) -> Optional[Schedule]:
         return self.db.query(Schedule).filter(Schedule.id == schedule_id).first()
     
-    def get_by_group_id(self, group_id: int) -> List[Schedule]:
-        return self.db.query(Schedule).filter(Schedule.groupId == group_id).all()
-    
-    def get_by_teacher_id(self, teacher_id: int) -> List[Schedule]:
-        return self.db.query(Schedule).filter(Schedule.teacherId == teacher_id).all()
+    def get_by_assistant_id(self, assistant_id: int) -> List[Schedule]:
+        return self.db.query(Schedule).filter(Schedule.assistantId == assistant_id).all()
     
     def get_by_room_id(self, room_id: int) -> List[Schedule]:
         return self.db.query(Schedule).filter(Schedule.roomId == room_id).all()

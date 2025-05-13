@@ -14,4 +14,3 @@ class Group(Base):
     # Relationships
     users = relationship("User", back_populates="group")
     subjects = relationship("Subject", back_populates="group")
-    schedules = relationship("Schedule", back_populates="group")

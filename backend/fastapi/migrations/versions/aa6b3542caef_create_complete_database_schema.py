@@ -1,8 +1,8 @@
 """Create complete database schema
 
-Revision ID: 65c44ce28443
+Revision ID: aa6b3542caef
 Revises: 
-Create Date: 2025-05-13 10:10:35.427632
+Create Date: 2025-05-13 10:32:05.864756
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '65c44ce28443'
+revision = 'aa6b3542caef'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -91,17 +91,15 @@ def upgrade() -> None:
     op.create_table('schedules',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('subjectId', sa.Integer(), nullable=False),
-    sa.Column('teacherId', sa.Integer(), nullable=False),
+    sa.Column('assistantId', sa.Integer(), nullable=False),
     sa.Column('roomId', sa.Integer(), nullable=False),
-    sa.Column('groupId', sa.Integer(), nullable=False),
     sa.Column('date', sa.Date(), nullable=False),
     sa.Column('startTime', sa.Time(), nullable=False),
     sa.Column('endTime', sa.Time(), nullable=False),
     sa.Column('status', sa.String(), nullable=False),
-    sa.ForeignKeyConstraint(['groupId'], ['groups.id'], ),
+    sa.ForeignKeyConstraint(['assistantId'], ['users.id'], ),
     sa.ForeignKeyConstraint(['roomId'], ['rooms.id'], ),
     sa.ForeignKeyConstraint(['subjectId'], ['subjects.id'], ),
-    sa.ForeignKeyConstraint(['teacherId'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_schedules_id'), 'schedules', ['id'], unique=False)

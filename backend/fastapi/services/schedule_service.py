@@ -32,12 +32,10 @@ class ScheduleService(IScheduleService):
             return ScheduleResponse.model_validate(schedule)
         return None
     
-    def get_schedules_by_group_id(self, group_id: int) -> List[ScheduleResponse]:
-        schedules = self.schedule_repository.get_by_group_id(group_id)
-        return [ScheduleResponse.model_validate(schedule) for schedule in schedules]
+    # Method removed since groupId is no longer used in the schedules table
     
-    def get_schedules_by_teacher_id(self, teacher_id: int) -> List[ScheduleResponse]:
-        schedules = self.schedule_repository.get_by_teacher_id(teacher_id)
+    def get_schedules_by_assistant_id(self, assistant_id: int) -> List[ScheduleResponse]:
+        schedules = self.schedule_repository.get_by_assistant_id(assistant_id)
         return [ScheduleResponse.model_validate(schedule) for schedule in schedules]
     
     def get_schedules_by_room_id(self, room_id: int) -> List[ScheduleResponse]:
@@ -75,27 +73,24 @@ class ScheduleService(IScheduleService):
         # All checks passed
         return True, None
         
-    def validate_teacher_id(self, teacher_id: int) -> Tuple[bool, Optional[str]]:
-        """Validates if the teacher_id exists and belongs to a user with role 'CD'.
+    def validate_assistant_id(self, assistant_id: int) -> Tuple[bool, Optional[str]]:
+        """
+        Validates if the assistant_id exists and belongs to a user with role 'CD'.
         
         Args:
-            teacher_id: The teacher ID to validate
+            assistant_id: The assistant ID to validate
             
         Returns:
             Tuple containing (is_valid, error_message)
             is_valid: True if validation passes, False otherwise
             error_message: Description of the error if validation fails, None otherwise
         """
-        # Check if teacher exists
-        teacher = self.user_repository.get_by_id(teacher_id)
-        if not teacher:
-            return False, f"User with ID {teacher_id} does not exist"
-            
-        # Check if user is a teacher (CD role)
-        if teacher.role != 'CD':
-            return False, f"User with ID {teacher_id} is not a teacher (role 'CD')"
-        
-        # All checks passed
+        assistant = self.user_repository.get_by_id(assistant_id)
+        if not assistant:
+            return False, f"Assistant with ID {assistant_id} not found"
+        if assistant.role != 'CD':
+            return False, f"User with ID {assistant_id} is not an assistant (role CD)"
+        return True, None      # All checks passed
         return True, None
         
     def validate_room_id(self, room_id: int) -> Tuple[bool, Optional[str]]:
@@ -142,8 +137,8 @@ class ScheduleService(IScheduleService):
         if not is_valid:
             raise ValueError(error_message)
             
-        # Validate teacher ID
-        is_valid, error_message = self.validate_teacher_id(schedule_data.teacherId)
+        # Validate assistant ID
+        is_valid, error_message = self.validate_assistant_id(schedule_data.assistantId)
         if not is_valid:
             raise ValueError(error_message)
             
@@ -151,18 +146,12 @@ class ScheduleService(IScheduleService):
         is_valid, error_message = self.validate_room_id(schedule_data.roomId)
         if not is_valid:
             raise ValueError(error_message)
-            
-        # Validate group ID
-        is_valid, error_message = self.validate_group_id(schedule_data.groupId)
-        if not is_valid:
-            raise ValueError(error_message)
         
         # Create new schedule object
         schedule = Schedule(
             subjectId=schedule_data.subjectId,
-            teacherId=schedule_data.teacherId,
+            assistantId=schedule_data.assistantId,
             roomId=schedule_data.roomId,
-            groupId=schedule_data.groupId,
             date=schedule_data.date,
             startTime=schedule_data.startTime,
             endTime=schedule_data.endTime,
@@ -184,8 +173,8 @@ class ScheduleService(IScheduleService):
             if not is_valid:
                 raise ValueError(error_message)
                 
-        if schedule_data.teacherId is not None:
-            is_valid, error_message = self.validate_teacher_id(schedule_data.teacherId)
+        if schedule_data.assistantId is not None:
+            is_valid, error_message = self.validate_assistant_id(schedule_data.assistantId)
             if not is_valid:
                 raise ValueError(error_message)
                 
@@ -193,21 +182,14 @@ class ScheduleService(IScheduleService):
             is_valid, error_message = self.validate_room_id(schedule_data.roomId)
             if not is_valid:
                 raise ValueError(error_message)
-                
-        if schedule_data.groupId is not None:
-            is_valid, error_message = self.validate_group_id(schedule_data.groupId)
-            if not is_valid:
-                raise ValueError(error_message)
             
         # Update schedule fields if provided
         if schedule_data.subjectId is not None:
             schedule.subjectId = schedule_data.subjectId
-        if schedule_data.teacherId is not None:
-            schedule.teacherId = schedule_data.teacherId
+        if schedule_data.assistantId is not None:
+            schedule.assistantId = schedule_data.assistantId
         if schedule_data.roomId is not None:
             schedule.roomId = schedule_data.roomId
-        if schedule_data.groupId is not None:
-            schedule.groupId = schedule_data.groupId
         if schedule_data.date is not None:
             schedule.date = schedule_data.date
         if schedule_data.startTime is not None:

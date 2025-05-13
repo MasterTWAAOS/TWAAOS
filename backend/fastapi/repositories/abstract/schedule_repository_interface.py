@@ -13,11 +13,7 @@ class IScheduleRepository(ABC):
         pass
     
     @abstractmethod
-    def get_by_group_id(self, group_id: int) -> List[Schedule]:
-        pass
-    
-    @abstractmethod
-    def get_by_teacher_id(self, teacher_id: int) -> List[Schedule]:
+    def get_by_assistant_id(self, assistant_id: int) -> List[Schedule]:
         pass
     
     @abstractmethod

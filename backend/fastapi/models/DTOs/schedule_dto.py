@@ -4,9 +4,8 @@ from datetime import date, time
 
 class ScheduleBase(BaseModel):
     subjectId: int
-    teacherId: int
+    assistantId: int
     roomId: int
-    groupId: int
     date: date
     startTime: time
     endTime: time
@@ -17,9 +16,8 @@ class ScheduleCreate(ScheduleBase):
 
 class ScheduleUpdate(BaseModel):
     subjectId: Optional[int] = None
-    teacherId: Optional[int] = None
+    assistantId: Optional[int] = None
     roomId: Optional[int] = None
-    groupId: Optional[int] = None
     date: Optional[date] = None
     startTime: Optional[time] = None
     endTime: Optional[time] = None
