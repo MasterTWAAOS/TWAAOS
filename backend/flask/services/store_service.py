@@ -4,7 +4,7 @@ import aiohttp
 import requests  # Keep for compatibility with non-async functions
 import concurrent.futures
 from typing import List, Dict, Any
-from config.settings import logger, FASTAPI_BASE_URL
+from config.settings import logger, FASTAPI_BASE_URL, skipped_faculty_logger
 
 async def process_group(session, group, index):
     """Process a single group with error handling"""
@@ -420,6 +420,10 @@ async def find_user_by_name_and_role(session, last_name, first_name, role):
     Returns:
         int or None: User ID if found, None otherwise
     """
+    # Clean up the input names by stripping whitespace
+    last_name = last_name.strip() if last_name else ""
+    first_name = first_name.strip() if first_name else ""
+    
     try:
         # Build the query parameters for exact search
         # Note: FastAPI controller expects camelCase parameter names
@@ -445,7 +449,7 @@ async def find_user_by_name_and_role(session, last_name, first_name, role):
                 return user_id
             else:
                 # Try with just last name as fallback
-                logger.warning(f"No exact match for {last_name} {first_name}. Trying with last name only.")
+                skipped_faculty_logger.warning(f"No exact match for {last_name} {first_name}. Trying with last name only.")
                 params = {
                     "lastName": last_name,  # Use camelCase to match FastAPI controller
                     "role": role
@@ -496,7 +500,10 @@ async def process_subject(session, subject, index, processed_teachers=None, proc
         # Process teacher if available
         if "teacherInfo" in subject:
             teacher_info = subject["teacherInfo"]
-            teacher_key = f"{teacher_info['lastName']}_{teacher_info['firstName']}"
+            # Strip whitespace from names to ensure consistent keys
+            last_name = teacher_info['lastName'].strip() if teacher_info.get('lastName') else ""
+            first_name = teacher_info['firstName'].strip() if teacher_info.get('firstName') else ""
+            teacher_key = f"{last_name}_{first_name}"
             
             # Check if we've already processed this teacher
             if teacher_key in processed_teachers:
@@ -544,7 +551,10 @@ async def process_subject(session, subject, index, processed_teachers=None, proc
             
             # Find each assistant
             for assistant_info in assistant_infos:
-                assistant_key = f"{assistant_info['lastName']}_{assistant_info['firstName']}"
+                # Strip whitespace from names to ensure consistent keys
+                last_name = assistant_info['lastName'].strip() if assistant_info.get('lastName') else ""
+                first_name = assistant_info['firstName'].strip() if assistant_info.get('firstName') else ""
+                assistant_key = f"{last_name}_{first_name}"
                 
                 # Check if we've already processed this assistant
                 if assistant_key in processed_assistants:

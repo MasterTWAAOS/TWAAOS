@@ -50,6 +50,32 @@ class ScheduleService(IScheduleService):
         schedules = await self.schedule_repository.get_by_status(status)
         return [ScheduleResponse.model_validate(schedule) for schedule in schedules]
         
+    async def get_schedules_by_group_id(self, group_id: int) -> List[ScheduleResponse]:
+        # Since we don't have a direct relationship to groups in the Schedule model,
+        # we need to get all schedules and filter them by checking the group_id relationship
+        # through the related subjects
+        all_schedules = await self.schedule_repository.get_all()
+        result_schedules = []
+        
+        for schedule in all_schedules:
+            subject = await self.subject_repository.get_by_id(schedule.subjectId)
+            if subject and subject.groupId == group_id:
+                result_schedules.append(schedule)
+                
+        return [ScheduleResponse.model_validate(schedule) for schedule in result_schedules]
+    
+    async def get_schedules_by_teacher_id(self, teacher_id: int) -> List[ScheduleResponse]:
+        # Get all schedules where the subject's teacher is the specified teacher_id
+        all_schedules = await self.schedule_repository.get_all()
+        result_schedules = []
+        
+        for schedule in all_schedules:
+            subject = await self.subject_repository.get_by_id(schedule.subjectId)
+            if subject and subject.teacherId == teacher_id:
+                result_schedules.append(schedule)
+                
+        return [ScheduleResponse.model_validate(schedule) for schedule in result_schedules]
+        
     async def validate_subject_id(self, subject_id: int) -> Tuple[bool, Optional[str]]:
         """Validates if the subject_id exists.
         
@@ -65,12 +91,16 @@ class ScheduleService(IScheduleService):
         subject = await self.subject_repository.get_by_id(subject_id)
         if not subject:
             return False, f"Subject with ID {subject_id} does not exist"
-        
-        # All checks passed
         return True, None
-        
-    # Method removed since assistantId is no longer used in the schedules table
-        
+    
+    async def validate_teacher_id(self, teacher_id: int) -> Tuple[bool, Optional[str]]:
+        teacher = await self.user_repository.get_by_id(teacher_id)
+        if not teacher:
+            return False, f"Teacher with ID {teacher_id} does not exist"
+        if teacher.role != 'CD': 
+            return False, f"User with ID {teacher_id} is not a teacher"
+        return True, None
+    
     async def validate_room_id(self, room_id: int) -> Tuple[bool, Optional[str]]:
         """Validates if the room_id exists.
         
@@ -82,12 +112,9 @@ class ScheduleService(IScheduleService):
             is_valid: True if validation passes, False otherwise
             error_message: Description of the error if validation fails, None otherwise
         """
-        # Check if room exists
-        room = await self.room_repository.get_by_id(room_id)
+        # Check if room exists        room = await self.room_repository.get_by_id(room_id)
         if not room:
             return False, f"Room with ID {room_id} does not exist"
-        
-        # All checks passed
         return True, None
         
     async def validate_group_id(self, group_id: int) -> Tuple[bool, Optional[str]]:

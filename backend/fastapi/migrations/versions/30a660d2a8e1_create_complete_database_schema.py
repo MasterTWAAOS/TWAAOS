@@ -1,8 +1,8 @@
 """Create complete database schema
 
-Revision ID: f381d34639ca
+Revision ID: 30a660d2a8e1
 Revises: 
-Create Date: 2025-05-14 18:38:19.212692
+Create Date: 2025-05-14 20:29:20.960348
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'f381d34639ca'
+revision = '30a660d2a8e1'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -53,7 +53,7 @@ def upgrade() -> None:
     sa.Column('role', sa.String(), nullable=False),
     sa.Column('groupId', sa.Integer(), nullable=True),
     sa.Column('department', sa.String(), nullable=True),
-    sa.Column('phone', sa.String(length=15), nullable=True),
+    sa.Column('phone', sa.String(length=25), nullable=True),
     sa.Column('passwordHash', sa.String(), nullable=True),
     sa.Column('googleId', sa.String(), nullable=True),
     sa.Column('isActive', sa.Boolean(), nullable=True),

@@ -1,5 +1,6 @@
 """Services for transforming data from external APIs to our data model."""
-from config.settings import logger, TARGET_FACULTY_NAME
+from math import log
+from config.settings import logger, TARGET_FACULTIES, SPECIAL_DEPARTMENTS, skipped_faculty_logger
 
 async def transform_groups(groups):
     """Transform groups from USV API format to our API format
@@ -196,29 +197,35 @@ async def transform_faculty_staff(staff_data):
         logger.info(f"Sample staff structure from API: {staff_data[0]}")
     
     for staff in staff_data:
-        # Check if this person belongs to our target faculty or has department "Exterior"
+        # Check if this person belongs to one of our target faculties or special departments
         faculty_name = staff.get("facultyName")
         department_name = staff.get("departmentName")
         
-        if not (faculty_name == TARGET_FACULTY_NAME or department_name == "Exterior"):
+        # Include staff if their faculty is in our target list or their department is special
+        is_target_faculty = faculty_name in TARGET_FACULTIES
+        is_special_department = department_name in SPECIAL_DEPARTMENTS
+        
+        if not (is_target_faculty or is_special_department):
             skipped_count += 1
             continue
         
         # Check for all required fields
-        required_fields = ["lastName", "firstName", "emailAddress"]
+        required_fields = ["lastName", "firstName"]
         missing_fields = [field for field in required_fields if not staff.get(field)]
         
         if missing_fields:
             skipped_count += 1
-            if skipped_count <= 3:  # Only log first 3 skipped staff
-                logger.warning(f"Skipping staff due to missing fields {missing_fields}: {staff}")
+            if skipped_count < 3:
+                staff_name = f"{staff.get('firstName')} {staff.get('lastName')}"
+                logger.info(f"Skipping staff {staff_name} due to missing fields: {missing_fields}")
             continue
         
         # Create a new dict with mapped fields for UserDTO
+        # IMPORTANT: Strip whitespace from names to avoid matching issues
         user_data = {
-            "lastName": staff.get("lastName"),
-            "firstName": staff.get("firstName"),
-            "email": staff.get("emailAddress"),
+            "lastName": staff.get("lastName").strip() if staff.get("lastName") else "",
+            "firstName": staff.get("firstName").strip() if staff.get("firstName") else "",
+            "email": staff.get("emailAddress").strip() if staff.get("emailAddress") else "",
             "phone": staff.get("phoneNumber"),
             "department": staff.get("departmentName"),
             "role": "CD",  # All faculty staff will be assigned role CD

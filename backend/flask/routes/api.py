@@ -23,7 +23,6 @@ from services.store_service import (
     store_faculty_staff_in_db,
     store_subjects_in_db
 )
-from config.settings import TARGET_FACULTY_NAME
 
 # Create a logger for this module
 logger = logging.getLogger(__name__)
