@@ -1,20 +1,22 @@
-from typing import Iterator
-from sqlalchemy.orm import Session
+from typing import AsyncGenerator
+import asyncio
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.database import SessionLocal
 
 
-def get_db_session() -> Session:
-    """Provide a database session.
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Provide an async database session.
     
     This function is used by the dependency injector to provide a database session
-    to the repositories.
+    to the repositories. It properly handles closing the async session.
     
     Returns:
-        Session: A database session
+        AsyncSession: An async database session
     """
     db = SessionLocal()
     try:
-        return db
+        yield db
     finally:
-        db.close()
+        # Properly await the close coroutine
+        await db.close()

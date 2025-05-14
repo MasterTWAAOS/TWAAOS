@@ -8,17 +8,20 @@ from services.api_service import (
     fetch_faculties, 
     fetch_groups, 
     fetch_rooms,
-    fetch_faculty_staff
+    fetch_faculty_staff,
+    fetch_group_subjects
 )
 from services.transform_service import (
     transform_groups, 
     transform_rooms,
-    transform_faculty_staff
+    transform_faculty_staff,
+    transform_subjects
 )
 from services.store_service import (
     store_groups_in_db, 
     store_rooms_in_db,
-    store_faculty_staff_in_db
+    store_faculty_staff_in_db,
+    store_subjects_in_db
 )
 from config.settings import TARGET_FACULTY_NAME
 
@@ -107,9 +110,59 @@ async def fetch_and_sync_data():
         # Step 3: Send faculty staff to FastAPI for storage
         staff_results = await store_faculty_staff_in_db(transformed_staff)
         
+        # Part 4: Process Subjects
+        # ---------------------
+        # Note: This needs to happen after users are processed since we need to look up teacher IDs
+        logger.info("Starting subject synchronization process")
+        
+        all_subject_results = []
+        total_subjects_processed = 0
+        
+        # For each FIESC group that we successfully synced, fetch its subjects
+        for group_result in group_results:
+            if group_result.get("status") != "success" or not group_result.get("id"):
+                continue
+                
+            group_db_id = group_result.get("id")
+            group_name = group_result.get("group")
+            
+            # Find the original group in our transformed groups to get USV group IDs
+            original_group = None
+            for group in transformed_groups:
+                if group.get("name") == group_name:
+                    original_group = group
+                    break
+                    
+            if not original_group or not original_group.get("groupIds"):
+                logger.warning(f"Could not find original group data for '{group_name}', skipping subject fetch")
+                continue
+                
+            # Fetch subjects for each groupId from the USV API
+            for usv_group_id in original_group.get("groupIds", []):
+                logger.info(f"Fetching subjects for group {group_name} (USV ID: {usv_group_id})")
+                
+                # Fetch subject data from USV API
+                subject_data = await fetch_group_subjects(usv_group_id)
+                
+                if not subject_data or not subject_data[0]:
+                    logger.warning(f"No subject data found for group {group_name} (USV ID: {usv_group_id})")
+                    continue
+                    
+                # Transform subject data to match our API format
+                transformed_subjects = await transform_subjects(subject_data, group_db_id)
+                logger.info(f"Transformed {len(transformed_subjects)} subjects for group {group_name}")
+                total_subjects_processed += len(transformed_subjects)
+                
+                # Send subjects to FastAPI for storage
+                if transformed_subjects:
+                    subject_results = await store_subjects_in_db(transformed_subjects)
+                    all_subject_results.extend(subject_results)
+        
+        logger.info(f"Completed subject synchronization: processed {total_subjects_processed} total subjects")
+        
         return jsonify({
             "success": True,
-            "message": f"Successfully processed {len(transformed_groups)} groups, {len(transformed_rooms)} rooms, and {len(transformed_staff)} faculty staff",
+            "message": f"Successfully processed {len(transformed_groups)} groups, {len(transformed_rooms)} rooms, {len(transformed_staff)} faculty staff, and {total_subjects_processed} subjects",
             "groups": {
                 "count": len(transformed_groups),
                 "results": group_results
@@ -121,6 +174,10 @@ async def fetch_and_sync_data():
             "users": {
                 "count": len(transformed_staff),
                 "results": staff_results
+            },
+            "subjects": {
+                "count": total_subjects_processed,
+                "results": all_subject_results
             }
         })
         

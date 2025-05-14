@@ -5,10 +5,10 @@ async def transform_groups(groups):
     """Transform groups from USV API format to our API format
     
     Extract only the needed fields and format them according to our GroupDTO.
-    Deduplicate groups by groupName, keeping only the first occurrence but storing
-    all original IDs in the groupIds field.
+    Deduplicate groups by comparing all relevant properties (name, study year, specialization),
+    keeping only the first occurrence but storing all original IDs in the groupIds field.
     """
-    # Dictionary to track unique groups by name and collect all related IDs
+    # Dictionary to track unique groups by a composite key and collect all related IDs
     unique_groups = {}
     
     for group in groups:
@@ -18,24 +18,30 @@ async def transform_groups(groups):
             
         group_name = group.get("groupName")
         group_id = group.get("id")
+        study_year = int(group.get("studyYear") or 1)
+        specialization = group.get("specializationShortName") or ""
         
-        # If we've already seen this group name, just add its ID to the list
-        if group_name in unique_groups:
+        # Create a composite key using multiple fields for uniqueness
+        # This ensures we're not just relying on the name but considering all relevant properties
+        unique_key = f"{group_name}_{study_year}_{specialization}"
+        
+        # If we've already seen a group with the same properties, just add its ID to the list
+        if unique_key in unique_groups:
             # Add this ID to the existing group's groupIds list
             if group_id:
-                unique_groups[group_name]["groupIds"].append(group_id)
+                unique_groups[unique_key]["groupIds"].append(group_id)
             continue
             
         # Create a new dict with only the fields we need
         group_data = {
             "name": group_name,
-            "studyYear": int(group.get("studyYear") or 1),
-            "specializationShortName": group.get("specializationShortName") or "",
+            "studyYear": study_year,
+            "specializationShortName": specialization,
             "groupIds": [group_id] if group_id else []  # Initialize with this group's ID
         }
         
-        # Store in our unique groups dictionary
-        unique_groups[group_name] = group_data
+        # Store in our unique groups dictionary using the composite key
+        unique_groups[unique_key] = group_data
     
     # Convert the dictionary to a list
     transformed = list(unique_groups.values())
@@ -83,6 +89,97 @@ async def transform_rooms(rooms):
         transformed.append(room_data)
     
     logger.info(f"Transformed {len(transformed)} rooms successfully, skipped {skipped_count} rooms")
+    return transformed
+
+async def transform_subjects(subject_data, group_db_id):
+    """Transform subjects from USV API format to our API format
+    
+    Args:
+        subject_data (list): The subject data from USV API (containing list of activities and ID mapping)
+        group_db_id (int): The database ID of the group these subjects belong to
+        
+    Returns:
+        list: List of transformed subjects ready for saving in our database
+    """
+    if not subject_data or len(subject_data) < 2:
+        logger.warning("No valid subject data to transform")
+        return []
+    
+    activities = subject_data[0]  # List of activities
+    
+    # Extract lecture ("curs") activities as these will become our subject base
+    courses = [activity for activity in activities if activity.get("typeLongName") == "curs"]
+    
+    # Use a dictionary to deduplicate subjects based on topicShortName
+    unique_subjects = {}
+    
+    for course in courses:
+        # Skip any courses with missing required fields
+        if not course.get("topicLongName") or not course.get("topicShortName"):
+            continue
+            
+        # Use topicShortName as the unique key
+        subject_key = course.get("topicShortName")
+        
+        # If we haven't seen this subject before, create a new one
+        if subject_key not in unique_subjects:
+            unique_subjects[subject_key] = {
+                "name": course.get("topicLongName"),
+                "shortName": course.get("topicShortName"),
+                "groupId": group_db_id,
+                "teacherId": None,  # Will be filled later after user lookup
+                "assistantIds": [],  # Will be filled later
+                "teacherInfo": {  # Store for reference during assistant processing
+                    "lastName": course.get("teacherLastName", "").strip(),
+                    "firstName": course.get("teacherFirstName", "").strip()
+                }
+            }
+    
+    # Now find all other activities (labs, seminars) that match our subjects
+    # to identify assistant teachers
+    for activity in activities:
+        activity_type = activity.get("typeLongName")
+        subject_key = activity.get("topicShortName")
+        
+        # Skip courses (already processed) and activities not matching our subjects
+        if activity_type == "curs" or subject_key not in unique_subjects:
+            continue
+            
+        # Get the teacher info from this activity
+        last_name = activity.get("teacherLastName", "").strip()
+        first_name = activity.get("teacherFirstName", "").strip()
+        
+        # Check if this is a different teacher than the course teacher
+        subject = unique_subjects[subject_key]
+        if (last_name and first_name and 
+            (last_name != subject["teacherInfo"]["lastName"] or 
+             first_name != subject["teacherInfo"]["firstName"])):
+            
+            # Add this assistant info to be processed later
+            if "assistantInfo" not in subject:
+                subject["assistantInfo"] = []
+                
+            # Check if we already have this assistant
+            assistant_exists = False
+            for assistant in subject["assistantInfo"]:
+                if assistant["lastName"] == last_name and assistant["firstName"] == first_name:
+                    assistant_exists = True
+                    break
+                    
+            if not assistant_exists:
+                subject["assistantInfo"].append({
+                    "lastName": last_name,
+                    "firstName": first_name
+                })
+    
+    # Convert dictionary to list, preserving all fields for later processing
+    transformed = list(unique_subjects.values())
+    
+    # Add logging details
+    teachers_count = sum(1 for subject in transformed if "teacherInfo" in subject)
+    assistants_count = sum(len(subject.get("assistantInfo", [])) for subject in transformed)
+    
+    logger.info(f"Found {len(transformed)} unique subjects with {teachers_count} teachers and {assistants_count} assistants")
     return transformed
 
 async def transform_faculty_staff(staff_data):

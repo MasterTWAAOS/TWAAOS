@@ -1,8 +1,8 @@
 """Create complete database schema
 
-Revision ID: ac491b090e2b
+Revision ID: f381d34639ca
 Revises: 
-Create Date: 2025-05-13 10:59:33.552206
+Create Date: 2025-05-14 18:38:19.212692
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'ac491b090e2b'
+revision = 'f381d34639ca'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -79,12 +79,9 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('shortName', sa.String(), nullable=False),
-    sa.Column('studyProgram', sa.String(), nullable=False),
-    sa.Column('studyYear', sa.Integer(), nullable=False),
     sa.Column('groupId', sa.Integer(), nullable=False),
     sa.Column('teacherId', sa.Integer(), nullable=False),
-    sa.Column('assistantId', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['assistantId'], ['users.id'], ),
+    sa.Column('assistantIds', sa.JSON(), nullable=False),
     sa.ForeignKeyConstraint(['groupId'], ['groups.id'], ),
     sa.ForeignKeyConstraint(['teacherId'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')

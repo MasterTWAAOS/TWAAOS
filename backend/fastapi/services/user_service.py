@@ -144,3 +144,35 @@ class UserService(IUserService):
             int: The number of users deleted
         """
         return await self.user_repository.delete_all()
+        
+    async def search_users(self, first_name: Optional[str] = None, last_name: Optional[str] = None, role: Optional[str] = None) -> List[UserResponse]:
+        """Search for users by name and role.
+        
+        Args:
+            first_name (Optional[str]): First name to search for
+            last_name (Optional[str]): Last name to search for
+            role (Optional[str]): Role to filter by
+            
+        Returns:
+            List[UserResponse]: List of matching users
+        """
+        # Start with basic filter criteria
+        filter_criteria = {}
+        
+        # Add filters for non-None parameters
+        if first_name is not None:
+            filter_criteria["firstName"] = first_name
+            
+        if last_name is not None:
+            filter_criteria["lastName"] = last_name
+            
+        if role is not None:
+            filter_criteria["role"] = role
+            
+        # If no filters provided, return empty list to avoid returning all users unintentionally
+        if not filter_criteria:
+            return []
+            
+        # Get matching users
+        users = await self.user_repository.find_by_filters(filter_criteria)
+        return [UserResponse.model_validate(user) for user in users]

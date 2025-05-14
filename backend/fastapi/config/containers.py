@@ -28,6 +28,7 @@ from services.schedule_service import ScheduleService
 from services.notification_service import NotificationService
 from services.excel_template_service import ExcelTemplateService
 from services.auth_service import AuthService
+from services.sync_service import SyncService
 
 # Service interface imports
 from services.abstract.user_service_interface import IUserService
@@ -38,6 +39,7 @@ from services.abstract.schedule_service_interface import IScheduleService
 from services.abstract.notification_service_interface import INotificationService
 from services.abstract.excel_template_service_interface import IExcelTemplateService
 from services.abstract.auth_service_interface import IAuthService
+from services.abstract.sync_service_interface import ISyncService
 
 from config.database_provider import get_db_session
 
@@ -50,8 +52,8 @@ class Container(containers.DeclarativeContainer):
         packages=["controllers"]
     )
     
-    # Database
-    db = providers.Factory(
+    # Database - use Resource to properly handle async generator
+    db = providers.Resource(
         get_db_session
     )
     
@@ -140,4 +142,12 @@ class Container(containers.DeclarativeContainer):
         user_repository=user_repository,
         group_repository=group_repository,
         db=db
+    )
+    
+    sync_service = providers.Factory(
+        SyncService,
+        group_service=group_service,
+        room_service=room_service,
+        user_service=user_service,
+        subject_service=subject_service
     )

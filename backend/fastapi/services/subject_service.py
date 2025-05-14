@@ -1,4 +1,5 @@
 from typing import List, Optional, Tuple
+import logging
 
 from models.subject import Subject
 from models.DTOs.subject_dto import SubjectCreate, SubjectUpdate, SubjectResponse
@@ -6,6 +7,8 @@ from repositories.abstract.subject_repository_interface import ISubjectRepositor
 from repositories.abstract.group_repository_interface import IGroupRepository
 from repositories.abstract.user_repository_interface import IUserRepository
 from services.abstract.subject_service_interface import ISubjectService
+
+logger = logging.getLogger(__name__)
 
 class SubjectService(ISubjectService):
     def __init__(self, subject_repository: ISubjectRepository, 
@@ -94,10 +97,34 @@ class SubjectService(ISubjectService):
         if not assistant:
             return False, f"User with ID {assistant_id} does not exist"
             
-        # Check if user is an assistant (CD role)
+        # Check if user is a teacher/assistant (CD role)
         if assistant.role != 'CD':
-            return False, f"User with ID {assistant_id} is not an assistant (role 'CD')"
+            return False, f"User with ID {assistant_id} is not a valid assistant (requires role 'CD')"
         
+        # All checks passed
+        return True, None
+        
+    async def validate_assistant_ids(self, assistant_ids: List[int]) -> Tuple[bool, Optional[str]]:
+        """Validate that all assistant users exist and have role CD (professor).
+        
+        Args:
+            assistant_ids: List of user IDs to validate
+            
+        Returns:
+            Tuple[bool, Optional[str]]: (is_valid, error_message)
+        """
+        if not assistant_ids:
+            return True, None  # Empty list is valid
+            
+        for assistant_id in assistant_ids:
+            assistant = await self.user_repository.get_by_id(assistant_id)
+            
+            if not assistant:
+                return False, f"Assistant user with ID {assistant_id} does not exist"
+                
+            if assistant.role != "CD":
+                return False, f"Assistant with ID {assistant_id} must have role CD (professor), but has {assistant.role}"
+                
         # All checks passed
         return True, None
 
@@ -112,24 +139,25 @@ class SubjectService(ISubjectService):
         if not is_valid:
             raise ValueError(error_message)
             
-        # Validate assistantId
-        is_valid, error_message = await self.validate_assistant_id(subject_data.assistantId)
+        # Validate assistantIds list
+        is_valid, error_message = await self.validate_assistant_ids(subject_data.assistantIds)
         if not is_valid:
             raise ValueError(error_message)
         
-        # Create new subject object
+        # Create new subject object with direct assistantIds
         subject = Subject(
             name=subject_data.name,
             shortName=subject_data.shortName,
-            studyProgram=subject_data.studyProgram,
-            studyYear=subject_data.studyYear,
             groupId=subject_data.groupId,
             teacherId=subject_data.teacherId,
-            assistantId=subject_data.assistantId
+            assistantIds=subject_data.assistantIds or []
         )
         
         # Save to database
         created_subject = await self.subject_repository.create(subject)
+        
+        # No need to update assistants separately - they're stored directly now
+        
         return SubjectResponse.model_validate(created_subject)
 
     async def update_subject(self, subject_id: int, subject_data: SubjectUpdate) -> Optional[SubjectResponse]:
@@ -149,9 +177,9 @@ class SubjectService(ISubjectService):
             if not is_valid:
                 raise ValueError(error_message)
                 
-        # Validate assistantId if provided
-        if subject_data.assistantId is not None:
-            is_valid, error_message = await self.validate_assistant_id(subject_data.assistantId)
+        # Validate assistantIds if provided
+        if subject_data.assistantIds is not None:
+            is_valid, error_message = await self.validate_assistant_ids(subject_data.assistantIds)
             if not is_valid:
                 raise ValueError(error_message)
             
@@ -160,16 +188,14 @@ class SubjectService(ISubjectService):
             subject.name = subject_data.name
         if subject_data.shortName is not None:
             subject.shortName = subject_data.shortName
-        if subject_data.studyProgram is not None:
-            subject.studyProgram = subject_data.studyProgram
-        if subject_data.studyYear is not None:
-            subject.studyYear = subject_data.studyYear
         if subject_data.groupId is not None:
             subject.groupId = subject_data.groupId
         if subject_data.teacherId is not None:
             subject.teacherId = subject_data.teacherId
-        if subject_data.assistantId is not None:
-            subject.assistantId = subject_data.assistantId
+        
+        # Set assistantIds directly if provided
+        if subject_data.assistantIds is not None:
+            subject.assistantIds = subject_data.assistantIds
             
         # Save changes
         updated_subject = await self.subject_repository.update(subject)
@@ -177,3 +203,15 @@ class SubjectService(ISubjectService):
 
     async def delete_subject(self, subject_id: int) -> bool:
         return await self.subject_repository.delete(subject_id)
+        
+    async def delete_all_subjects(self) -> int:
+        """Delete all subjects from the database.
+        
+        This method uses the repository's delete_all method which handles foreign key constraints
+        and clears relationships before executing the deletion.
+        
+        Returns:
+            int: Number of subjects deleted
+        """
+        logger.info("Deleting all subjects...")
+        return await self.subject_repository.delete_all()

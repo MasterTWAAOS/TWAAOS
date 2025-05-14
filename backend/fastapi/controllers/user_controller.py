@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
+from typing import List, Optional
 from dependency_injector.wiring import inject, Provide
 
 from models.DTOs.user_dto import UserCreate, UserUpdate, UserResponse
@@ -19,6 +19,26 @@ async def get_all_users(
         List[UserResponse]: A list of all users
     """
     return await service.get_all_users()
+
+@router.get("/search", response_model=List[UserResponse], summary="Search users", description="Search for users by name and role")
+@inject
+async def search_users(
+    firstName: Optional[str] = None,
+    lastName: Optional[str] = None,
+    role: Optional[str] = None,
+    service: IUserService = Depends(Provide[Container.user_service])
+):
+    """Search for users by name and role.
+    
+    Args:
+        firstName (Optional[str]): First name to search for
+        lastName (Optional[str]): Last name to search for
+        role (Optional[str]): Role to filter by
+        
+    Returns:
+        List[UserResponse]: List of matching users
+    """
+    return await service.search_users(first_name=firstName, last_name=lastName, role=role)
 
 @router.get("/{user_id}", response_model=UserResponse, summary="Get user by ID", description="Retrieve a specific user by their ID")
 @inject
@@ -70,6 +90,8 @@ async def get_user_by_email(
             detail=f"User with email {email} not found"
         )
     return user
+
+
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED, summary="Create user", description="Create a new user in the system")
 @inject

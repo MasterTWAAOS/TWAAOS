@@ -82,3 +82,41 @@ class UserRepository(IUserRepository):
         await self.db.execute(delete(User))
         await self.db.commit()
         return count
+        
+    async def find_by_filters(self, filters: dict) -> List[User]:
+        """Find users by specified filters.
+        
+        Args:
+            filters (dict): Dictionary of field-value pairs to filter by
+            
+        Returns:
+            List[User]: List of matching users
+        """
+        try:
+            from sqlalchemy import func
+            
+            # Start with a basic query
+            query = select(User)
+            
+            # Text fields that should use case-insensitive search
+            text_fields = ["firstName", "lastName", "email"]
+            
+            # Add filter conditions dynamically based on provided filters
+            for field, value in filters.items():
+                # Make sure the attribute exists on the User model
+                if hasattr(User, field):
+                    if field in text_fields and value is not None:
+                        # Use case-insensitive search for text fields
+                        # This works for PostgreSQL which is your database
+                        query = query.filter(func.lower(getattr(User, field)) == func.lower(value))
+                    else:
+                        # Use exact match for non-text fields or when value is None
+                        query = query.filter(getattr(User, field) == value)
+            
+            # Execute the query
+            result = await self.db.execute(query)
+            return result.scalars().all()
+        except Exception as e:
+            import logging
+            logging.error(f"Error in user repository find_by_filters: {str(e)}")
+            raise

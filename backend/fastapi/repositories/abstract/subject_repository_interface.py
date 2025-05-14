@@ -34,3 +34,7 @@ class ISubjectRepository(ABC):
     @abstractmethod
     async def delete(self, subject_id: int) -> bool:
         pass
+    
+    @abstractmethod
+    async def delete_all(self) -> int:
+        pass

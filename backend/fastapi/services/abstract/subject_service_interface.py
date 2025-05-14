@@ -46,3 +46,12 @@ class ISubjectService(ABC):
     @abstractmethod
     async def delete_subject(self, subject_id: int) -> bool:
         pass
+        
+    @abstractmethod
+    async def delete_all_subjects(self) -> int:
+        """Delete all subjects from the database
+        
+        Returns:
+            int: Number of subjects deleted
+        """
+        pass

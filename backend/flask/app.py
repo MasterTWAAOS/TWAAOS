@@ -5,8 +5,9 @@ This module initializes the Quart application and registers all the blueprints.
 import os
 import logging
 import asyncio
-from quart import Quart
-from flasgger import Swagger
+from quart import Quart, render_template_string
+# Remove Flasgger import which is causing context issues
+# from flasgger import Swagger
 from routes.api import api_bp
 
 # Configure logging
@@ -26,32 +27,51 @@ def create_app(test_config=None):
         # Load the test config if passed in
         app.config.from_mapping(test_config)
     
-    # Configure Swagger
-    swagger_config = {
-        "headers": [],
-        "specs": [
-            {
-                "endpoint": "apispec",
-                "route": "/apispec.json",
-                "rule_filter": lambda rule: True,  # all in
-                "model_filter": lambda tag: True,  # all in
-            }
-        ],
-        "static_url_path": "/flasgger_static",
-        "swagger_ui": True,
-        "specs_route": "/docs/",
-        "title": "Data Synchronization API",
-        "description": "API for synchronizing data from USV to TWAAOS",
-        "version": "1.0.0",
-    }
-    try:
-        # Try to initialize Swagger - if there are compatibility issues, we'll catch and log them
-        swagger = Swagger(app, config=swagger_config)
-        logger.info('Swagger documentation initialized')
-    except Exception as e:
-        logger.warning(f'Could not initialize Swagger documentation: {str(e)}')
-        logger.warning('API will run without Swagger documentation')
-        pass
+    # Simple HTML documentation instead of Swagger
+    docs_html = """
+    <html>
+        <head>
+            <title>Data Synchronization API</title>
+            <style>
+                body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+                h1 { color: #333; }
+                h2 { color: #555; margin-top: 30px; }
+                pre { background-color: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }
+                .endpoint { margin-bottom: 30px; }
+                .method { font-weight: bold; color: #009688; }
+            </style>
+        </head>
+        <body>
+            <h1>Data Synchronization API</h1>
+            <p>API for synchronizing data from USV to TWAAOS</p>
+            
+            <h2>Endpoints:</h2>
+            
+            <div class="endpoint">
+                <h3><span class="method">GET</span> /health</h3>
+                <p>Health check endpoint to verify the API is running.</p>
+            </div>
+            
+            <div class="endpoint">
+                <h3><span class="method">POST</span> /fetch-and-sync-data</h3>
+                <p>Fetch and synchronize data from USV APIs to the TWAAOS database.</p>
+                <p>This endpoint handles the following synchronization tasks:</p>
+                <ul>
+                    <li>Groups from FIESC faculty</li>
+                    <li>Rooms</li>
+                    <li>Faculty staff (users)</li>
+                    <li>Subjects with teachers and assistants</li>
+                </ul>
+            </div>
+        </body>
+    </html>
+    """
+    
+    @app.route('/docs/')
+    async def api_docs():
+        return docs_html, {"Content-Type": "text/html"}
+        
+    logger.info('Custom API documentation initialized at /docs/')
     
     # Register blueprints
     app.register_blueprint(api_bp)

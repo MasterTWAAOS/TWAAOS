@@ -1,7 +1,8 @@
 from logging.config import fileConfig
-
-from sqlalchemy import engine_from_config
+import asyncio
 from sqlalchemy import pool
+from sqlalchemy.engine import Connection
+from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
@@ -43,14 +44,18 @@ def run_migrations_offline() -> None:
 
     Calls to context.execute() here emit the given string to the
     script output.
-
     """
     url = config.get_main_option("sqlalchemy.url")
+    # Convert async URL to sync URL for offline mode
+    if url.startswith("postgresql+asyncpg"):
+        url = url.replace("postgresql+asyncpg", "postgresql")
+        
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        render_as_batch=True,  # Better for SQLite but works with Postgres too
     )
 
     with context.begin_transaction():
@@ -59,25 +64,37 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """
-    Run migrations in 'online' mode.
+    Run migrations in 'online' mode using async SQLAlchemy.
 
-    In this scenario we need to create an Engine
+    In this scenario we need to create an AsyncEngine
     and associate a connection with the context.
-
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
-
-    with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+    # Create a sync function for Alembic to run
+    def do_migrations(connection: Connection) -> None:
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()
+
+    # Create async engine
+    async def run_async_migrations() -> None:
+        config_section = config.get_section(config.config_ini_section)
+        
+        # Use async_engine_from_config instead of engine_from_config
+        connectable = async_engine_from_config(
+            config_section,
+            prefix="sqlalchemy.",
+            poolclass=pool.NullPool,
+        )
+
+        async with connectable.connect() as connection:
+            await connection.run_sync(do_migrations)
+        
+        # Close the engine connection
+        await connectable.dispose()
+    
+    # Run the async function in the asyncio event loop
+    asyncio.run(run_async_migrations())
 
 
 if context.is_offline_mode():

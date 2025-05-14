@@ -23,7 +23,7 @@ SQLALCHEMY_DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSW
 
 engine = create_async_engine(
     SQLALCHEMY_DATABASE_URL, 
-    echo=True,
+    echo=False,  # Disable SQL statement logging
     pool_pre_ping=True,
     pool_recycle=3600,
     future=True

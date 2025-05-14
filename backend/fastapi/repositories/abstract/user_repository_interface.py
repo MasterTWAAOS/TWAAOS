@@ -39,3 +39,15 @@ class IUserRepository(ABC):
             int: The number of users deleted
         """
         pass
+        
+    @abstractmethod
+    async def find_by_filters(self, filters: dict) -> List[User]:
+        """Find users by specified filters.
+        
+        Args:
+            filters (dict): Dictionary of field-value pairs to filter by
+            
+        Returns:
+            List[User]: List of matching users
+        """
+        pass

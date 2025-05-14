@@ -40,3 +40,17 @@ class IUserService(ABC):
             int: The number of users deleted
         """
         pass
+        
+    @abstractmethod
+    async def search_users(self, first_name: Optional[str] = None, last_name: Optional[str] = None, role: Optional[str] = None) -> List[UserResponse]:
+        """Search for users by name and role.
+        
+        Args:
+            first_name (Optional[str]): First name to search for
+            last_name (Optional[str]): Last name to search for
+            role (Optional[str]): Role to filter by
+            
+        Returns:
+            List[UserResponse]: List of matching users
+        """
+        pass
