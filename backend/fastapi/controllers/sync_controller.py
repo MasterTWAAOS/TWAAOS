@@ -9,7 +9,7 @@ from services.abstract.room_service_interface import IRoomService
 from services.abstract.user_service_interface import IUserService
 
 router = APIRouter(
-    prefix="/api/sync",
+    prefix="/sync",
     tags=["Synchronization"],
     responses={404: {"description": "Not found"}}
 )

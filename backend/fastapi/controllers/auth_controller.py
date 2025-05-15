@@ -15,11 +15,11 @@ from services.token_service import create_access_token
 from config.settings import get_settings
 
 router = APIRouter(
-    prefix="/api/auth",
+    prefix="/auth",
     tags=["authentication"],
     responses={404: {"description": "Not found"}}
 )
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 settings = get_settings()
 
 @router.post("/login", response_model=TokenResponse, summary="Login with username and password", 
@@ -56,7 +56,7 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=float(settings.ACCESS_TOKEN_EXPIRE_MINUTES))
     access_token = await create_access_token(
         data={
             "sub": str(user.id),
@@ -101,100 +101,31 @@ async def google_login(
         HTTPException: If authentication fails or user not found
     """
     try:
-        # Check if we have a Google Client ID configured
-        if settings.GOOGLE_CLIENT_ID:
-            # Production mode - Verify the Google ID token
-            try:
-                idinfo = id_token.verify_oauth2_token(
-                    request.token, 
-                    google_requests.Request(), 
-                    settings.GOOGLE_CLIENT_ID
-                )
-                
-                # Extract user information from the verified token
-                google_id = idinfo['sub']
-                email = idinfo['email']
-                first_name = idinfo.get('given_name', '')
-                last_name = idinfo.get('family_name', '')
-            except Exception as e:
-                # Log the error for debugging
-                print(f"Google token verification failed: {str(e)}")
-                raise ValueError("Invalid token or client ID")
-        else:
-            # Development mode - Mock verification 
-            print("DEVELOPMENT MODE: Using mock Google verification")
-            
-            # Check if we're using the special token format: email|role
-            if '|' in request.token:
-                # Parse the token as email|role format
-                parts = request.token.split('|')
-                email = parts[0]
-                
-                # Extract role and optional groupId if available
-                if len(parts) >= 2:
-                    role_code = parts[1]
-                else:
-                    role_code = None
-                    
-                # Extract groupId if available (format: email|role|groupId)
-                group_id = None
-                if len(parts) >= 3 and parts[2] != 'null':
-                    try:
-                        group_id = int(parts[2])
-                    except ValueError:
-                        # If not a valid integer, ignore
-                        pass
-                
-                # Create a deterministic google_id from the email
-                google_id = f"dev-{email.split('@')[0]}"
-                first_name = "Test"
-                last_name = email.split('@')[0].capitalize()
-            else:
-                # Fallback to legacy token handling
-                google_id = f"dev-{request.token[:12]}"
-                email = f"{request.token[:8]}@student.usv.ro"  
-                first_name = "Dev"
-                last_name = "User"
-                role_code = None  # Will be determined from email domain later
+        # Use the service to verify the token and extract user info
+        # This will raise an HTTPException if verification fails
+        user_info = await auth_service.verify_google_token(request.token)
         
-        # In development mode with our special token format, we already have the role
-        if not settings.GOOGLE_CLIENT_ID and '|' in request.token:
-            # Use the role that was specified in the token
-            user_role = role_code
-            print(f"DEVELOPMENT MODE: Using role from token: {user_role}")
-        else:
-            # Production mode or fallback: Check if the email is from USV domains
-            email_domain = email.split('@')[-1].lower()
-            if email_domain not in settings.USV_EMAIL_DOMAINS:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only USV email addresses are allowed for authentication"
-                )
-            
-            # Determine user role based on email domain
-            user_role = None
-            if email_domain == "student.usv.ro":
-                user_role = "SG"  # Student
-            elif email_domain in ["usv.ro", "staff.usv.ro", "fim.usv.ro", "fiesc.usv.ro"]:
-                user_role = "CD"  # Professor
+        # Extract user information from the response
+        google_id = user_info['google_id']
+        email = user_info['email']
+        first_name = user_info['first_name']
+        last_name = user_info['last_name']
             
         # Get or create the user with the verified Google information
-        user = await auth_service.get_or_create_google_user(
+        user = await auth_service.get_google_user(
             google_id=google_id,
             email=email,
             first_name=first_name,
-            last_name=last_name,
-            role=user_role,
-            group_id=group_id
+            last_name=last_name
         )
         
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found and could not be created"
+                detail="User not found"
             )
         
-        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token_expires = timedelta(minutes=float(settings.ACCESS_TOKEN_EXPIRE_MINUTES))
         access_token = await create_access_token(
             data={
                 "sub": str(user.id),

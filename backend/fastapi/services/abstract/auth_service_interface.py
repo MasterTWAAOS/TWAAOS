@@ -22,7 +22,7 @@ class IAuthService(ABC):
         pass
     
     @abstractmethod
-    async def get_or_create_google_user(self, google_id: str, email: str, first_name: str, last_name: str, role: Optional[str] = None, group_id: Optional[int] = None) -> Optional[User]:
+    async def get_google_user(self, google_id: str, email: str, first_name: str, last_name: str) -> Optional[User]:
         """
         Get or create a user with Google authentication data
         
@@ -31,11 +31,25 @@ class IAuthService(ABC):
             email: User's email address
             first_name: User's first name
             last_name: User's last name
-            role: User's role (SG for student, CD for professor)
-            group_id: Optional group ID for students
             
         Returns:
             Optional[User]: The user object if found or created, None otherwise
+        """
+        pass
+        
+    @abstractmethod
+    async def verify_google_token(self, token: str) -> dict:
+        """
+        Verify a Google ID token and extract user information
+        
+        Args:
+            token: The Google ID token to verify
+            
+        Returns:
+            dict: User information extracted from the token
+            
+        Raises:
+            HTTPException: If token verification fails
         """
         pass
     

@@ -143,7 +143,7 @@ class SyncService(ISyncService):
             {
                 "firstName": "Tudor", 
                 "lastName": "Albu", 
-                "email": "student1@student.usv.ro", 
+                "email": "niculai.crainiciuc@student.usv.ro", 
                 "role": "SG", 
                 # Only include groupId if we found a valid one
                 **({
@@ -157,7 +157,7 @@ class SyncService(ISyncService):
             {
                 "firstName": "Matei", 
                 "lastName": "Neagu", 
-                "email": "professor@fiesc.usv.ro", 
+                "email": "filaret.crainiciuc@student.usv.ro", 
                 "role": "CD", 
                 "department": "C", 
                 "phone": "0723321123",
@@ -167,7 +167,7 @@ class SyncService(ISyncService):
             {
                 "firstName": "Alina", 
                 "lastName": "Berca", 
-                "email": "secretary@usv.ro", 
+                "email": "c.filaret200@gmail.com", 
                 "role": "SEC",
                 "googleId": "dev-alina-berca"
             },

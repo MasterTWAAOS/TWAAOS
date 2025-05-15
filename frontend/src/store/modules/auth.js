@@ -69,6 +69,12 @@ export default {
         const response = await authService.googleLogin(googleToken)
         const { token, user } = response.data
         
+        // Validate that the user role is appropriate for Google login
+        if (user.role === 'ADM') {
+          commit('LOGIN_FAILURE', 'Administrator accounts cannot use Google authentication. Please use username/password login.')
+          return Promise.reject(new Error('Administrator accounts cannot use Google authentication'))
+        }
+        
         // Store token in localStorage
         localStorage.setItem('token', token)
         
@@ -78,7 +84,6 @@ export default {
         if (user.role === 'SG') router.push('/student')
         else if (user.role === 'CD') router.push('/professor')
         else if (user.role === 'SEC') router.push('/secretariat')
-        else if (user.role === 'ADM') router.push('/admin')
         
         return response
       } catch (error) {
@@ -93,16 +98,19 @@ export default {
         .then(response => {
           const { token, user } = response.data
           
+          // Validate that only Administrators can use username/password login
+          if (user.role !== 'ADM') {
+            commit('LOGIN_FAILURE', 'Non-administrator accounts must use Google authentication')
+            return Promise.reject(new Error('Non-administrator accounts must use Google authentication'))
+          }
+          
           // Store token in localStorage
           localStorage.setItem('token', token)
           
           commit('LOGIN_SUCCESS', { token, user })
           
-          // Redirect to appropriate dashboard based on user role
-          if (user.role === 'SG') router.push('/student')
-          else if (user.role === 'CD') router.push('/professor')
-          else if (user.role === 'SEC') router.push('/secretariat')
-          else if (user.role === 'ADM') router.push('/admin')
+          // For Admin role, redirect to admin dashboard
+          router.push('/admin')
           
           return response
         })

@@ -42,7 +42,14 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=[
+        "http://localhost",  # Frontend running on local docker
+        "http://127.0.0.1",  # Alternative localhost
+        "http://localhost:80",  # With port specified
+        "http://127.0.0.1:80",
+        "http://localhost:8080",  # Vue.js development server
+        "http://127.0.0.1:8080"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

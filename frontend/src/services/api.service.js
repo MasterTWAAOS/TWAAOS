@@ -4,7 +4,7 @@ import router from '@/router'
 
 // Create axios instance with base configurations
 const apiClient = axios.create({
-  baseURL: process.env.VUE_APP_API_URL || '/api',
+  baseURL: process.env.VUE_APP_API_URL,
   headers: {
     'Content-Type': 'application/json'
   }

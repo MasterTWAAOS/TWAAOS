@@ -1,31 +1,33 @@
 from passlib.context import CryptContext
-from typing import Optional
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional, Dict
+from fastapi import HTTPException, status
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 from services.abstract.auth_service_interface import IAuthService
 from models.user import User
 from repositories.abstract.user_repository_interface import IUserRepository
 from repositories.abstract.group_repository_interface import IGroupRepository
 from services.token_service import decode_access_token
+from config.settings import get_settings
 
 class AuthService(IAuthService):
     """
     Implementation of authentication service
     """
     
-    def __init__(self, user_repository: IUserRepository, group_repository: IGroupRepository, db: AsyncSession):
+    def __init__(self, user_repository: IUserRepository, group_repository: IGroupRepository):
         """
-        Initialize the auth service with a user repository, group repository and database session
+        Initialize the auth service with a user repository and group repository
         
         Args:
             user_repository: Repository for user operations
             group_repository: Repository for group operations
-            db: SQLAlchemy async database session
         """
         self.user_repository = user_repository
         self.group_repository = group_repository
-        self.db = db
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        self.settings = get_settings()
     
     async def authenticate_user(self, email: str, password: str) -> Optional[User]:
         """
@@ -48,7 +50,46 @@ class AuthService(IAuthService):
         
         return user
     
-    async def get_or_create_google_user(self, google_id: str, email: str, first_name: str, last_name: str, role: Optional[str] = None, group_id: Optional[int] = None) -> Optional[User]:
+    async def verify_google_token(self, token: str) -> Dict:
+        """
+        Verify a Google ID token and extract user information
+        
+        Args:
+            token: The Google ID token to verify
+            
+        Returns:
+            dict: User information extracted from the token
+            
+        Raises:
+            HTTPException: If token verification fails
+        """
+        try:
+            print(f"Attempting to verify Google token")
+            idinfo = id_token.verify_oauth2_token(
+                token, 
+                google_requests.Request(), 
+                self.settings.GOOGLE_CLIENT_ID
+            )
+            
+            # Extract user information from the verified token
+            user_info = {
+                'google_id': idinfo['sub'],
+                'email': idinfo['email'],
+                'first_name': idinfo.get('given_name', ''),
+                'last_name': idinfo.get('family_name', '')
+            }
+            
+            print(f"Successfully verified Google token for email: {user_info['email']}")
+            return user_info
+        except Exception as e:
+            # Log the error for debugging
+            print(f"Google token verification failed: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Invalid Google token: {str(e)}"
+            )
+    
+    async def get_google_user(self, google_id: str, email: str, first_name: str, last_name: str) -> Optional[User]:
         """
         Get or create a user with Google authentication data
         
@@ -57,56 +98,32 @@ class AuthService(IAuthService):
             email: User's email address
             first_name: User's first name
             last_name: User's last name
-            role: User's role (SG for student, CD for professor)
-            group_id: Optional group ID for students
             
         Returns:
             Optional[User]: The user object if found or created, None otherwise
         """
-        # Try to find user by google_id first
-        user = await self.user_repository.get_by_google_id(google_id)
+        print(f"Looking up user with email: {email} and google_id: {google_id}")
         
-        if user:
-            return user
-        
-        # Try to find user by email
+        # First priority: Try to find user by email (most reliable way to identify users)
         user = await self.user_repository.get_by_email(email)
         
         if user:
-            # Update user with google_id if not already set
-            if not user.googleId:
+            print(f"Found existing user by email: {email}, id: {user.id}, role: {user.role}")
+            # Update user with google_id if not already set or different
+            if user.googleId != google_id:
+                # Update user's Google ID in repository
                 user.googleId = google_id
-                await self.db.commit()
+                
+                # Also update first/last name if they were empty
+                if not user.firstName and first_name:
+                    user.firstName = first_name
+                if not user.lastName and last_name:
+                    user.lastName = last_name
+                
+                print(f"Updated user with Google ID: {google_id}")
+                await self.user_repository.update(user)
             return user
         
-        # If we have a valid role from the controller (based on email domain validation),
-        # we can create a new user automatically
-        # Note: ADM (admin) users should only be created through traditional registration,
-        # not through Google authentication for security reasons
-        if role in ["SG", "CD", "SEC"]:
-            # For student role, verify if the group exists before assigning
-            assigned_group_id = None
-            if role == "SG" and group_id is not None:
-                # Use the repository to check if the group exists
-                if await self.group_repository.exists_by_id(group_id):
-                    assigned_group_id = group_id
-                else:
-                    print(f"Group ID {group_id} does not exist in the database. Creating user without group assignment.")
-            
-            # Create a new user with the role provided from the controller
-            new_user = User(
-                firstName=first_name,
-                lastName=last_name,
-                email=email,
-                googleId=google_id,
-                role=role,
-                groupId=assigned_group_id  # Only assign if we confirmed it exists
-            )
-            
-            created_user = await self.user_repository.create(new_user)
-            return created_user
-        
-        # If email domain doesn't match any of our criteria, we don't create a user
         return None
     
     async def verify_password(self, plain_password: str, hashed_password: str) -> bool:
