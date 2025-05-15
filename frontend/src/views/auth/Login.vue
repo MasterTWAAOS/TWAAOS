@@ -15,6 +15,20 @@
             <div class="p-mt-3">
               <!-- Google rendered button -->
               <div id="google-signin-button" class="w-full" style="min-height: 40px;"></div>
+              
+              <!-- Fallback if Google button fails to load -->
+              <div v-if="googleButtonFailed" class="mt-3">
+                <Message severity="warn" :closable="false">
+                  Butonul Google nu s-a putut încărca. Vă rugăm să reîncărcați pagina sau să încercați din nou mai târziu.
+                </Message>
+                <Button 
+                  class="google-btn p-button-raised p-button-lg w-full mt-2" 
+                  @click="retryGoogleInitialization"
+                >
+                  <i class="pi pi-refresh p-mr-2"></i>
+                  Încercați din nou
+                </Button>
+              </div>
             </div>
           </div>
           
@@ -78,6 +92,8 @@ import { useStore } from 'vuex'
 import Password from 'primevue/password'
 import Message from 'primevue/message'
 import Divider from 'primevue/divider'
+// Import the nonce module for CSP compliance
+import { v4 as uuidv4 } from 'uuid'
 
 export default {
   name: 'LoginView',
@@ -93,6 +109,9 @@ export default {
     const isLoading = computed(() => store.getters['auth/isLoading'])
     const errorMessage = computed(() => store.getters['auth/authError'])
     const isDevelopmentMode = computed(() => process.env.VUE_APP_USE_DEV_AUTH === 'true')
+    const googleButtonFailed = ref(false)
+    const buttonRenderAttempts = ref(0)
+    const maxRenderAttempts = 3
     const showFallbackButton = ref(false)
     
     // Method to handle admin login
@@ -284,9 +303,22 @@ export default {
       }
     }
     
+    // Method to retry Google button initialization
+    const retryGoogleInitialization = () => {
+      googleButtonFailed.value = false
+      buttonRenderAttempts.value = 0
+      initializeGoogleAuth()
+    }
+
     // Initialize auth and clear errors when component mounts
     onMounted(() => {
       store.dispatch('auth/clearError')
+      
+      // Set meta tag for Cross-Origin-Opener-Policy
+      const metaTag = document.createElement('meta')
+      metaTag.httpEquiv = 'Cross-Origin-Opener-Policy'
+      metaTag.content = 'same-origin-allow-popups'
+      document.head.appendChild(metaTag)
       
       // Always initialize Google Sign-In since we only have one button now
       initializeGoogleAuth()
@@ -295,15 +327,44 @@ export default {
     // Function to initialize Google Auth and render the sign-in button
     const initializeGoogleAuth = () => {
       try {
+        buttonRenderAttempts.value++
+        
+        // Check if we've tried too many times and failed
+        if (buttonRenderAttempts.value > maxRenderAttempts) {
+          console.error('Maximum Google button render attempts exceeded');
+          googleButtonFailed.value = true;
+          return;
+        }
+        
         // Check if Google API is loaded
         if (!window.google || !window.google.accounts) {
           console.error('Google API not loaded. Please check if script is included in index.html');
-          return;
+          // Try to load the script dynamically if it's missing
+          if (buttonRenderAttempts.value === 1) {
+            const script = document.createElement('script');
+            script.src = 'https://accounts.google.com/gsi/client';
+            script.async = true;
+            script.defer = true;
+            script.nonce = uuidv4(); // Add nonce for security
+            document.head.appendChild(script);
+            
+            script.onload = () => {
+              console.log('Google API script loaded dynamically');
+              // Try again after the script loads
+              setTimeout(initializeGoogleAuth, 1000);
+            };
+            return;
+          } else {
+            // If we've already tried to load the script, show the failure message
+            googleButtonFailed.value = true;
+            return;
+          }
         }
         
         const client_id = process.env.VUE_APP_GOOGLE_CLIENT_ID;
         if (!client_id) {
           console.error('Google Client ID not configured');
+          googleButtonFailed.value = true;
           return;
         }
         
@@ -315,7 +376,9 @@ export default {
             client_id: client_id,
             callback: handleCredentialResponse,
             auto_select: false,
-            cancel_on_tap_outside: true
+            cancel_on_tap_outside: true,
+            prompt_parent_id: 'google-signin-button',
+            itp_support: true // Add improved third-party support
           });
           window.googleAuthInitialized = true;
           console.log('Google Auth initialized');
@@ -325,24 +388,39 @@ export default {
         setTimeout(() => {
           const buttonContainer = document.getElementById('google-signin-button');
           if (buttonContainer) {
-            google.accounts.id.renderButton(
-              buttonContainer, 
-              { 
-                theme: 'filled_blue', 
-                size: 'large',
-                shape: 'rectangular',
-                width: buttonContainer.offsetWidth || 240,
-                text: 'signin_with',
-                logo_alignment: 'center'
-              }
-            );
-            console.log('Google Sign-In button rendered');
+            try {
+              google.accounts.id.renderButton(
+                buttonContainer, 
+                { 
+                  theme: 'filled_blue', 
+                  size: 'large',
+                  shape: 'rectangular',
+                  width: buttonContainer.offsetWidth || 240,
+                  text: 'signin_with',
+                  logo_alignment: 'center'
+                }
+              );
+              console.log('Google Sign-In button rendered');
+              
+              // Check if button was really rendered
+              setTimeout(() => {
+                if (buttonContainer.childElementCount === 0) {
+                  console.warn('Google button appears not to have rendered correctly');
+                  googleButtonFailed.value = true;
+                }
+              }, 1000);
+            } catch (renderError) {
+              console.error('Error rendering Google button:', renderError);
+              googleButtonFailed.value = true;
+            }
           } else {
             console.error('Google Sign-In button container not found');
+            googleButtonFailed.value = true;
           }
-        }, 100); // Small timeout to ensure DOM is ready
+        }, 300); // Increased timeout to ensure DOM is ready
       } catch (error) {
         console.error('Error initializing Google Sign-In:', error);
+        googleButtonFailed.value = true;
       }
     }
     
@@ -351,8 +429,9 @@ export default {
       password,
       loginAdmin,
       isDevelopmentMode,
-      showFallbackButton,
       initiateGoogleSignIn,
+      retryGoogleInitialization,
+      googleButtonFailed,
       isLoading,
       errorMessage
     }

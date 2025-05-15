@@ -173,9 +173,9 @@ class SyncService(ISyncService):
             },
             # Admin user with password
             {
-                "firstName": "A", 
-                "lastName": "A", 
-                "email": "a@usv.ro", 
+                "firstName": "Admin", 
+                "lastName": "Admin", 
+                "email": "admin@usv.ro", 
                 "role": "ADM", 
                 "passwordHash": "asddsa"
             }
