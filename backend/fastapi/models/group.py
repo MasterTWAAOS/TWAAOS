@@ -14,3 +14,4 @@ class Group(Base):
     # Relationships
     users = relationship("User", back_populates="group")
     subjects = relationship("Subject", back_populates="group")
+    excel_templates = relationship("ExcelTemplate", back_populates="group")

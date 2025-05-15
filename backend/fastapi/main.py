@@ -14,6 +14,7 @@ from controllers import notification_controller
 from controllers import excel_template_controller
 from controllers import sync_controller
 from controllers import auth_controller
+from controllers import config_controller
 
 from models.user import Base
 from config.database import engine
@@ -65,6 +66,7 @@ app.include_router(notification_controller.router)
 app.include_router(excel_template_controller.router)
 app.include_router(sync_controller.router)
 app.include_router(auth_controller.router)
+app.include_router(config_controller.router)
 
 # Root endpoint
 @app.get("/", tags=["root"], summary="Root endpoint", description="Returns a welcome message for the API")

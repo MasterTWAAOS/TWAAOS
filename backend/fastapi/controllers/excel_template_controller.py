@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Path, Query
+from fastapi.responses import StreamingResponse
+from typing import List, Optional
 from dependency_injector.wiring import inject, Provide
+import io
 
-from models.DTOs.excel_template_dto import ExcelTemplateCreate, ExcelTemplateUpdate, ExcelTemplateResponse
+from models.DTOs.excel_template_dto import ExcelTemplateResponse, TemplateType
 from services.abstract.excel_template_service_interface import IExcelTemplateService
 from config.containers import Container
 
@@ -71,70 +73,170 @@ async def get_template_by_name(
         )
     return template
 
-@router.post("", response_model=ExcelTemplateResponse, status_code=status.HTTP_201_CREATED, summary="Create new excel template", description="Create a new excel template in the system")
+@router.get("/group/{group_id}/type/{type}", response_model=ExcelTemplateResponse, summary="Get template by group and type", description="Retrieve a specific template by group ID and template type")
 @inject
-async def create_template(
-    template_data: ExcelTemplateCreate, 
+async def get_template_by_group_and_type(
+    group_id: int = Path(..., description="The group ID"),
+    type: TemplateType = Path(..., description="The template type (sali, cd, sg)"),
     service: IExcelTemplateService = Depends(Provide[Container.excel_template_service])
 ):
-    """Create a new excel template.
+    """Get a specific template by group ID and template type.
     
     Args:
-        template_data (ExcelTemplateCreate): The excel template data for creation
+        group_id (int): The group ID
+        type (TemplateType): The template type
         
     Returns:
-        ExcelTemplateResponse: The created excel template details
-    """
-    return await service.create_template(template_data)
-
-@router.put("/{template_id}", response_model=ExcelTemplateResponse, summary="Update excel template", description="Update an existing excel template's information")
-@inject
-async def update_template(
-    template_id: int, 
-    template_data: ExcelTemplateUpdate, 
-    service: IExcelTemplateService = Depends(Provide[Container.excel_template_service])
-):
-    """Update an existing excel template.
-    
-    Args:
-        template_id (int): The ID of the excel template to update
-        template_data (ExcelTemplateUpdate): The updated excel template data
-        
-    Returns:
-        ExcelTemplateResponse: The updated excel template details
+        ExcelTemplateResponse: The template details
         
     Raises:
-        HTTPException: If the excel template is not found
+        HTTPException: If the template is not found
     """
-    updated_template = await service.update_template(template_id, template_data)
+    # Check if the template exists
+    template = await service.get_template_by_group_and_type(group_id, type)
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Template for group {group_id} with type '{type}' not found"
+        )
+    return template
+
+@router.get("/download/{template_id}", summary="Download template file", description="Download the Excel file for a specific template")
+@inject
+async def download_template_file(
+    template_id: int,
+    service: IExcelTemplateService = Depends(Provide[Container.excel_template_service])
+):
+    """Download the Excel file for a specific template.
+    
+    Args:
+        template_id (int): The ID of the template to download
+        
+    Returns:
+        StreamingResponse: The Excel file as a downloadable response
+        
+    Raises:
+        HTTPException: If the template is not found or has no file
+    """
+    # First check if the template exists
+    template = await service.get_template_by_id(template_id)
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Template with ID {template_id} not found"
+        )
+    
+    # Get the file content
+    file_content = await service.get_file_by_id(template_id)
+    if not file_content:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No file found for template with ID {template_id}"
+        )
+    
+    # Create a streaming response with the file content
+    return StreamingResponse(
+        io.BytesIO(file_content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename={template.name.replace(' ', '_')}.xlsx"
+        }
+    )
+
+@router.post("", response_model=ExcelTemplateResponse, status_code=status.HTTP_201_CREATED, summary="Create new template", description="Create a new Excel template with an uploaded file")
+@inject
+async def create_template(
+    name: str = Form(..., description="Template name"),
+    template_type: TemplateType = Form(..., description="Template type (sali, cd, sg)"),
+    file: UploadFile = File(..., description="Excel file to upload"),
+    group_id: Optional[int] = Form(None, description="Group ID (optional)"),
+    description: Optional[str] = Form(None, description="Template description (optional)"),
+    service: IExcelTemplateService = Depends(Provide[Container.excel_template_service])
+):
+    """Create a new Excel template with an uploaded file.
+    
+    Args:
+        name (str): Template name
+        template_type (TemplateType): Template type
+        file (UploadFile): Excel file to upload
+        group_id (Optional[int]): Group ID (optional)
+        description (Optional[str]): Template description (optional)
+        
+    Returns:
+        ExcelTemplateResponse: The created template details
+    """
+    return await service.create_template(name, file, template_type, group_id, description)
+
+@router.put("/{template_id}", response_model=ExcelTemplateResponse, summary="Update template", description="Update an existing Excel template")
+@inject
+async def update_template(
+    template_id: int,
+    name: Optional[str] = Form(None, description="Template name"),
+    template_type: Optional[TemplateType] = Form(None, description="Template type (sali, cd, sg)"),
+    file: Optional[UploadFile] = File(None, description="Excel file to upload"),
+    group_id: Optional[int] = Form(None, description="Group ID"),
+    description: Optional[str] = Form(None, description="Template description"),
+    service: IExcelTemplateService = Depends(Provide[Container.excel_template_service])
+):
+    """Update an existing Excel template.
+    
+    Args:
+        template_id (int): The ID of the template to update
+        name (Optional[str]): Template name
+        template_type (Optional[TemplateType]): Template type
+        file (Optional[UploadFile]): Excel file to upload
+        group_id (Optional[int]): Group ID
+        description (Optional[str]): Template description
+        
+    Returns:
+        ExcelTemplateResponse: The updated template details
+        
+    Raises:
+        HTTPException: If the template is not found
+    """
+    # Update the template
+    updated_template = await service.update_template(
+        template_id=template_id,
+        name=name,
+        file=file,
+        template_type=template_type,
+        group_id=group_id,
+        description=description
+    )
+    
     if not updated_template:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Excel template with ID {template_id} not found"
+            detail=f"Template with ID {template_id} not found"
         )
+        
     return updated_template
 
-@router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete excel template", description="Delete an excel template from the system")
+@router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete template", description="Delete an existing template")
 @inject
 async def delete_template(
     template_id: int, 
     service: IExcelTemplateService = Depends(Provide[Container.excel_template_service])
 ):
-    """Delete an excel template.
+    """Delete a template.
     
     Args:
-        template_id (int): The ID of the excel template to delete
+        template_id (int): The ID of the template to delete
         
     Returns:
         None: No content is returned
         
     Raises:
-        HTTPException: If the excel template is not found
+        HTTPException: If the template is not found
     """
-    success = await service.delete_template(template_id)
-    if not success:
+    # First check if the template exists
+    template = await service.get_template_by_id(template_id)
+    if not template:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Excel template with ID {template_id} not found"
+            detail=f"Template with ID {template_id} not found"
         )
+        
+    # Delete the template
+    await service.delete_template(template_id)
     return None

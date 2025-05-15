@@ -9,7 +9,8 @@ from models.room import Room
 from models.schedule import Schedule
 from models.notification import Notification
 from models.excel_template import ExcelTemplate
+from models.config import Config
 
 # Export the base and metadata for Alembic to use
-__all__ = ['Base', 'User', 'Group', 'Subject', 'Room', 'Schedule', 'Notification', 'ExcelTemplate']
+__all__ = ['Base', 'User', 'Group', 'Subject', 'Room', 'Schedule', 'Notification', 'ExcelTemplate', 'Config']
 metadata = Base.metadata

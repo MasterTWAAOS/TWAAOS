@@ -12,7 +12,7 @@ class User(Base):
     role = Column(String, nullable=False)  # 'SG', 'CD', 'SEC', 'ADM'
     groupId = Column(Integer, ForeignKey("groups.id"), nullable=True)  # Only for SG users
     department = Column(String, nullable=True)  # For CD users
-    phone = Column(String(15), nullable=True)  # Optional
+    phone = Column(String(25), nullable=True)  # Optional
     passwordHash = Column(String, nullable=True)  # Only for ADM users
     googleId = Column(String, unique=True, nullable=True)  # ID from Google JWT token
     isActive = Column(Boolean, default=True)

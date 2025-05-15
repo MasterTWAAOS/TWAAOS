@@ -135,7 +135,10 @@ async def fetch_and_sync_data():
             if not original_group or not original_group.get("groupIds"):
                 logger.warning(f"Could not find original group data for '{group_name}', skipping subject fetch")
                 continue
-                
+            
+            # Collect all subject data from all USV group IDs for this database group
+            all_group_subject_data = []
+            
             # Fetch subjects for each groupId from the USV API
             for usv_group_id in original_group.get("groupIds", []):
                 logger.info(f"Fetching subjects for group {group_name} (USV ID: {usv_group_id})")
@@ -146,16 +149,30 @@ async def fetch_and_sync_data():
                 if not subject_data or not subject_data[0]:
                     logger.warning(f"No subject data found for group {group_name} (USV ID: {usv_group_id})")
                     continue
-                    
-                # Transform subject data to match our API format
-                transformed_subjects = await transform_subjects(subject_data, group_db_id)
-                logger.info(f"Transformed {len(transformed_subjects)} subjects for group {group_name}")
-                total_subjects_processed += len(transformed_subjects)
                 
-                # Send subjects to FastAPI for storage
-                if transformed_subjects:
-                    subject_results = await store_subjects_in_db(transformed_subjects)
-                    all_subject_results.extend(subject_results)
+                # Combine all activities from all USV group IDs for this database group
+                if all_group_subject_data:
+                    # If we already have data, append the new activities to the existing list
+                    all_group_subject_data[0].extend(subject_data[0])
+                    # Preserve the second element (ID mapping) as is
+                else:
+                    # First subject data for this group - use as is
+                    all_group_subject_data = subject_data
+            
+            # Skip if we didn't find any subject data for this group
+            if not all_group_subject_data:
+                continue
+                
+            # Now transform all collected subject data at once for this group
+            # This ensures deduplication happens across all USV group IDs for this database group
+            transformed_subjects = await transform_subjects(all_group_subject_data, group_db_id)
+            logger.info(f"Transformed {len(transformed_subjects)} unique subjects for group {group_name} (across all USV IDs)")
+            total_subjects_processed += len(transformed_subjects)
+            
+            # Send subjects to FastAPI for storage
+            if transformed_subjects:
+                subject_results = await store_subjects_in_db(transformed_subjects)
+                all_subject_results.extend(subject_results)
         
         logger.info(f"Completed subject synchronization: processed {total_subjects_processed} total subjects")
         
