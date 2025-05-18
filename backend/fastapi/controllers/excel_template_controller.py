@@ -149,7 +149,7 @@ async def create_template(
     name: str = Form(..., description="Template name"),
     template_type: TemplateType = Form(..., description="Template type (sali, cd, sg)"),
     file: UploadFile = File(..., description="Excel file to upload"),
-    group_id: Optional[int] = Form(None, description="Group ID (optional)"),
+    group_id: Optional[str] = Form(None, description="Group ID (optional)"),
     description: Optional[str] = Form(None, description="Template description (optional)"),
     service: IExcelTemplateService = Depends(Provide[Container.excel_template_service])
 ):
@@ -165,7 +165,12 @@ async def create_template(
     Returns:
         ExcelTemplateResponse: The created template details
     """
-    return await service.create_template(name, file, template_type, group_id, description)
+    # Convert empty string to None for group_id, or convert to int if it has a value
+    processed_group_id = None
+    if group_id and group_id.strip():
+        processed_group_id = int(group_id)
+        
+    return await service.create_template(name, file, template_type, processed_group_id, description)
 
 @router.put("/{template_id}", response_model=ExcelTemplateResponse, summary="Update template", description="Update an existing Excel template")
 @inject
@@ -174,7 +179,7 @@ async def update_template(
     name: Optional[str] = Form(None, description="Template name"),
     template_type: Optional[TemplateType] = Form(None, description="Template type (sali, cd, sg)"),
     file: Optional[UploadFile] = File(None, description="Excel file to upload"),
-    group_id: Optional[int] = Form(None, description="Group ID"),
+    group_id: Optional[str] = Form(None, description="Group ID"),
     description: Optional[str] = Form(None, description="Template description"),
     service: IExcelTemplateService = Depends(Provide[Container.excel_template_service])
 ):
@@ -194,13 +199,18 @@ async def update_template(
     Raises:
         HTTPException: If the template is not found
     """
+    # Convert empty string to None for group_id, or convert to int if it has a value
+    processed_group_id = None
+    if group_id and group_id.strip():
+        processed_group_id = int(group_id)
+        
     # Update the template
     updated_template = await service.update_template(
         template_id=template_id,
         name=name,
         file=file,
         template_type=template_type,
-        group_id=group_id,
+        group_id=processed_group_id,
         description=description
     )
     

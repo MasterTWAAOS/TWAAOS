@@ -1,12 +1,14 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
 from dependency_injector.wiring import inject, Provide
 from pydantic import BaseModel
+from typing import List, Dict, Any
 import logging
 from config.containers import Container
 from services.abstract.sync_service_interface import ISyncService
 from services.abstract.group_service_interface import IGroupService
 from services.abstract.room_service_interface import IRoomService
 from services.abstract.user_service_interface import IUserService
+from services.abstract.excel_service_interface import IExcelService
 
 router = APIRouter(
     prefix="/sync",
@@ -25,6 +27,13 @@ class DeleteResponse(BaseModel):
     success: bool
     message: str
     deleted_count: int
+    
+class GroupLeaderUploadResponse(BaseModel):
+    success: bool
+    message: str
+    created_count: int = 0
+    failed_count: int = 0
+    errors: List[str] = []
 
 @router.delete("/groups", response_model=DeleteResponse,
            summary="Delete all groups",
@@ -111,9 +120,67 @@ async def delete_all_users(user_service: IUserService = Depends(Provide[Containe
             detail=f"Failed to delete all users: {str(e)}"
         )
 
-@router.post("/data", response_model=SyncResponse, 
-           summary="Sync data from USV API", 
-           description="Triggers deletion of existing data and synchronization of groups, rooms, and users from USV API")
+@router.post("/groups/upload-leaders", response_model=GroupLeaderUploadResponse,
+           summary="Upload group leaders from Excel", 
+           description="Process an Excel file with group leaders information and create user accounts")
+@inject
+async def upload_group_leaders(
+    file: UploadFile = File(...),
+    excel_service: IExcelService = Depends(Provide[Container.excel_service])
+):
+    """
+    Process an Excel file containing group leaders (Sefi de Grupa) information and create user accounts.
+    
+    The Excel file should have columns for lastName, firstName, email, and groupName.
+    The first row is treated as headers and skipped during processing.
+    
+    Args:
+        file: The uploaded Excel file
+        excel_service: The Excel service for processing files
+        
+    Returns:
+        GroupLeaderUploadResponse: The upload result
+        
+    Raises:
+        HTTPException: If the file upload or processing fails
+    """
+    try:
+        # First, check that the file is an Excel file
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uploaded file must be an Excel file (.xlsx or .xls)"
+            )
+        
+        # Read the file content
+        file_content = await file.read()
+        
+        # Process the file directly with our excel service
+        result = await excel_service.process_group_leaders(file_content)
+        
+        # Return the response
+        return GroupLeaderUploadResponse(
+            success=result.get('success', False),
+            message=result.get('message', 'Group leaders processed'),
+            created_count=result.get('created_count', 0),
+            failed_count=result.get('failed_count', 0),
+            errors=result.get('errors', [])
+        )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing group leaders: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process group leaders: {str(e)}"
+        )
+
+# This endpoint has been replaced by the direct implementation above
+
+@router.post("/data", response_model=SyncResponse,
+           summary="Sync data from USV API",
+           description="Trigger the Flask service to fetch data from USV API and sync it to the database")
 @inject
 async def sync_data(
     sync_service: ISyncService = Depends(Provide[Container.sync_service])

@@ -279,29 +279,64 @@ export default {
     const downloadTemplate = (templateType) => {
       try {
         // This would connect to your API to download the template
-        // For demonstration, we're just showing the notification
         
-        store.dispatch('notifications/showNotification', {
-          severity: 'info',
-          summary: 'Descărcare Template',
-          detail: `Se descarcă template-ul pentru ${templateType}...`,
-          life: 2000
-        })
-        
-        // In a real implementation, you would fetch and save the file
-        // For example:
-        // const response = await templateService.getTemplate(templateType)
-        // saveAs(new Blob([response.data]), `template-${templateType}.xlsx`)
-        
-        // Mock timeout to simulate download
-        setTimeout(() => {
+        if (templateType === 'group-leaders') {
+          // Create a simple Excel template for group leaders
+          // We'll use a library like exceljs or xlsx in a real implementation
+          // For now, we'll create a simple CSV content and convert it to a Blob
+          
+          const headers = ['lastName', 'firstName', 'email', 'groupName']
+          const exampleRow = ['Popescu', 'Ion', 'ion.popescu@student.usv.ro', '3103B']
+          
+          // Create CSV content
+          const csvContent = [
+            headers.join(','),
+            exampleRow.join(',')
+          ].join('\n')
+          
+          // Create a Blob from the CSV content
+          const blob = new Blob([csvContent], { type: 'text/csv' })
+          
+          // Create a download link and trigger the download
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement('a')
+          link.href = url
+          link.download = 'sefi_de_grupa_template.csv'
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          
+          // In a real implementation, you would request the template from the server
+          // For example:
+          // const response = await fetch(`/api/excel-templates/download/group-leaders`)
+          // const blob = await response.blob()
+          // const url = URL.createObjectURL(blob)
+          // ... download as above
+          
           store.dispatch('notifications/showNotification', {
             severity: 'success',
-            summary: 'Descărcare Completă',
-            detail: `Template-ul a fost descărcat cu succes.`,
+            summary: 'Descărcare Reușită',
+            detail: `Template-ul pentru Șefi de Grupă a fost descărcat cu succes.`,
             life: 3000
           })
-        }, 1000)
+        } else {
+          // For other template types, we'll keep the original behavior
+          // In a real implementation, you would request the template from the server
+          // For example:
+          // const response = await fetch(`/api/templates/${templateType}`)
+          // const blob = await response.blob()
+          
+          // For the example, we'll simulate a delay and then create a dummy message
+          setTimeout(() => {
+            // This would download the actual file in a real implementation
+            store.dispatch('notifications/showNotification', {
+              severity: 'success',
+              summary: 'Descărcare Reușită',
+              detail: `Template-ul a fost descărcat cu succes.`,
+              life: 3000
+            })
+          }, 1000)
+        }
       } catch (error) {
         store.dispatch('notifications/showNotification', {
           severity: 'error',
@@ -352,17 +387,57 @@ export default {
         const file = event.files[0]
         uploads.value.groupLeaders = { status: 'loading', message: 'Se încarcă fișierul...' }
         
-        // Mock timeout to simulate upload
-        setTimeout(() => {
-          uploads.value.groupLeaders = { status: 'success', message: 'Încărcare reușită! 21 șefi de grupă au fost importați.' }
+        // Create a form data object to send the file
+        const formData = new FormData()
+        formData.append('file', file)
+        
+        // Send the file to the backend API
+        const response = await fetch('/sync/groups/upload-leaders', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            // Don't set Content-Type header for multipart/form-data
+            'Accept': 'application/json'
+          }
+        })
+        
+        const data = await response.json()
+        
+        if (!response.ok) {
+          throw new Error(data.detail || 'A apărut o eroare la încărcarea fișierului.')
+        }
+        
+        // Update the status based on the response
+        if (data.success) {
+          uploads.value.groupLeaders = { 
+            status: 'success', 
+            message: `Încărcare reușită! ${data.created_count} șefi de grupă au fost importați.` 
+          }
           
           store.dispatch('notifications/showNotification', {
             severity: 'success',
             summary: 'Încărcare Reușită',
-            detail: 'Lista șefilor de grupă a fost încărcată cu succes.',
+            detail: data.message || 'Lista șefilor de grupă a fost încărcată cu succes.',
             life: 3000
           })
-        }, 1500)
+        } else {
+          // Handle failed upload but with a valid response
+          const errorDetail = data.errors && data.errors.length > 0 
+            ? data.errors.join('\n')
+            : data.message || 'Au apărut erori la procesarea fișierului.'
+            
+          uploads.value.groupLeaders = { 
+            status: 'error', 
+            message: `Încărcare parțială: ${data.created_count} reușite, ${data.failed_count} eșuate.` 
+          }
+          
+          store.dispatch('notifications/showNotification', {
+            severity: 'warn',
+            summary: 'Încărcare Parțială',
+            detail: errorDetail,
+            life: 5000
+          })
+        }
       } catch (error) {
         uploads.value.groupLeaders = { status: 'error', message: error.message || 'A apărut o eroare la încărcarea fișierului.' }
         

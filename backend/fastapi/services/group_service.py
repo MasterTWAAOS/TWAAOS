@@ -61,6 +61,20 @@ class GroupService(IGroupService):
             int: The number of groups deleted
         """
         return await self.group_repository.delete_all()
+        
+    async def get_group_by_name(self, name: str) -> Optional[GroupResponse]:
+        """Get a group by its name.
+        
+        Args:
+            name (str): The name of the group to retrieve
+            
+        Returns:
+            Optional[GroupResponse]: The group if found, None otherwise
+        """
+        group = await self.group_repository.get_by_name(name)
+        if group:
+            return GroupResponse.model_validate(group)
+        return None
 
     async def exists_by_id(self, group_id: int) -> bool:
         """Check if a group exists by its ID.

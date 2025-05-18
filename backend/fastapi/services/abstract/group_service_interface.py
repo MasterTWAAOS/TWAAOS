@@ -33,6 +33,18 @@ class IGroupService(ABC):
         pass
         
     @abstractmethod
+    async def get_group_by_name(self, name: str) -> Optional[GroupResponse]:
+        """Get a group by its name.
+        
+        Args:
+            name (str): The name of the group to retrieve
+            
+        Returns:
+            Optional[GroupResponse]: The group if found, None otherwise
+        """
+        pass
+        
+    @abstractmethod
     async def exists_by_id(self, group_id: int) -> bool:
         """Check if a group exists by its ID.
         

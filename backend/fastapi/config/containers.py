@@ -32,6 +32,7 @@ from services.excel_template_service import ExcelTemplateService
 from services.auth_service import AuthService
 from services.sync_service import SyncService
 from services.config_service import ConfigService
+from services.excel_service import ExcelService
 
 # Service interface imports
 from services.abstract.user_service_interface import IUserService
@@ -44,6 +45,7 @@ from services.abstract.excel_template_service_interface import IExcelTemplateSer
 from services.abstract.auth_service_interface import IAuthService
 from services.abstract.sync_service_interface import ISyncService
 from services.abstract.config_service_interface import IConfigService
+from services.abstract.excel_service_interface import IExcelService
 
 from config.database_provider import get_db_session
 
@@ -163,4 +165,10 @@ class Container(containers.DeclarativeContainer):
     config_service = providers.Factory(
         ConfigService,
         config_repository=config_repository
+    )
+    
+    excel_service = providers.Factory(
+        ExcelService,
+        user_service=user_service,
+        group_service=group_service
     )

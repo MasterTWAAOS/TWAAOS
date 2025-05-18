@@ -18,6 +18,18 @@ class GroupRepository(IGroupRepository):
         result = await self.db.execute(select(Group).filter(Group.id == group_id))
         return result.scalars().first()
         
+    async def get_by_name(self, name: str) -> Optional[Group]:
+        """Get a group by its name.
+        
+        Args:
+            name (str): The name of the group
+            
+        Returns:
+            Optional[Group]: The group if found, None otherwise
+        """
+        result = await self.db.execute(select(Group).filter(Group.name == name))
+        return result.scalars().first()
+        
     async def exists_by_id(self, group_id: int) -> bool:
         # Returns True if the group_id exists, False otherwise
         # We use exists() and scalar() for efficiency instead of fetching the whole object

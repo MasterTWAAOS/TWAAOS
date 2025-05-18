@@ -1,6 +1,14 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
 from models.base import Base
+from enum import Enum
+
+class UserRole(str, Enum):
+    """Enum for user roles."""
+    SG = "SG"  # Sef de Grupa
+    CD = "CD"  # Cadru Didactic
+    SEC = "SEC"  # Secretariat
+    ADM = "ADM"  # Administrator
 
 class User(Base):
     __tablename__ = "users"

@@ -55,16 +55,17 @@ class UserRepository(IUserRepository):
 
     async def delete(self, user_id: int) -> bool:
         try:
-            user = await self.get_by_id(user_id)
-            if user:
-                await self.db.delete(user)
-                # The commit is now handled by the database provider in the get_db function
-                await self.db.flush()
-                return True
-            return False
+            # Execute direct SQL to avoid session caching issues
+            result = await self.db.execute(delete(User).where(User.id == user_id))
+            await self.db.commit()
+            
+            # Check if any rows were affected
+            return result.rowcount > 0
         except Exception as e:
             import logging
             logging.error(f"Error in user repository delete: {str(e)}")
+            # Consider rolling back explicitly on error
+            await self.db.rollback()
             raise
         
     async def delete_all(self) -> int:

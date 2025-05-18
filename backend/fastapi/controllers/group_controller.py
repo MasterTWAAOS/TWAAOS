@@ -46,6 +46,32 @@ async def get_group(
         )
     return group
 
+@router.get("/name/{name}", response_model=GroupResponse, summary="Get group by name", description="Retrieve a specific group by its name")
+@inject
+async def get_group_by_name(
+    name: str, 
+    service: IGroupService = Depends(Provide[Container.group_service])
+):
+    """Get a specific group by name.
+    
+    Args:
+        name (str): The name of the group to retrieve
+        
+    Returns:
+        GroupResponse: The group details
+        
+    Raises:
+        HTTPException: If the group is not found
+    """
+    # First check if the group exists
+    group = await service.get_group_by_name(name)
+    if not group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Group with name '{name}' not found"
+        )
+    return group
+
 @router.post("", response_model=GroupResponse, status_code=status.HTTP_201_CREATED, summary="Create new group", description="Create a new group in the system")
 @inject
 async def create_group(

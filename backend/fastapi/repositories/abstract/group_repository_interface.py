@@ -12,6 +12,18 @@ class IGroupRepository(ABC):
         pass
         
     @abstractmethod
+    async def get_by_name(self, name: str) -> Optional[Group]:
+        """Get a group by its name.
+        
+        Args:
+            name (str): The name of the group
+            
+        Returns:
+            Optional[Group]: The group if found, None otherwise
+        """
+        pass
+        
+    @abstractmethod
     async def exists_by_id(self, group_id: int) -> bool:
         pass
 

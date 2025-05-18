@@ -20,6 +20,9 @@ class Settings(BaseModel):
     
     # Google OAuth Settings
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    
+    # Flask Service URL
+    FLASK_SERVICE_URL: str = os.getenv("FLASK_SERVICE_URL", "http://flask:5000")
 
     # Note: With BaseModel instead of BaseSettings, env_file loading is not automatic
     # We'll use os.getenv directly instead for environment variables

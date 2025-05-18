@@ -1,9 +1,10 @@
 """API routes for the Quart application (async Flask alternative)."""
-from quart import Blueprint, jsonify
+from quart import Blueprint, jsonify, request
 # Comment out swagger import since it's causing issues
 # from quart_swagger import swag_from
 import logging
 import asyncio
+# Excel service has been moved to FastAPI
 from services.api_service import (
     fetch_faculties, 
     fetch_groups, 
@@ -29,6 +30,8 @@ logger = logging.getLogger(__name__)
 
 # Create a blueprint for the API routes
 api_bp = Blueprint('api', __name__)
+
+# Group leaders processing has been moved to FastAPI
 
 @api_bp.route('/health', methods=['GET'])
 # Swagger documentation commented out to avoid dependency issues

@@ -171,7 +171,7 @@ async def delete_user(
     Raises:
         HTTPException: If the user is not found
     """
-    success = service.delete_user(user_id)
+    success = await service.delete_user(user_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
