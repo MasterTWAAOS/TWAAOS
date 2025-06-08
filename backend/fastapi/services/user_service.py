@@ -145,6 +145,18 @@ class UserService(IUserService):
         """
         return await self.user_repository.delete_all()
         
+    async def get_users_by_role(self, role: str) -> List[UserResponse]:
+        """Get all users with a specific role.
+        
+        Args:
+            role (str): The role to filter users by (e.g., 'SG', 'CD', 'SEC', 'ADM')
+            
+        Returns:
+            List[UserResponse]: List of users with the specified role
+        """
+        users = await self.user_repository.get_by_role(role)
+        return [UserResponse.model_validate(user) for user in users]
+        
     async def search_users(self, first_name: Optional[str] = None, last_name: Optional[str] = None, role: Optional[str] = None) -> List[UserResponse]:
         """Search for users by name and role.
         

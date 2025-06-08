@@ -8,6 +8,9 @@ services:
     volumes:
       - ./backend/fastapi:/app
       - ./backend/.env:/app/../.env
+      - ./backend/.env:/app/.env
+    env_file:
+      - ./backend/.env
     depends_on:
       - db
     restart: always

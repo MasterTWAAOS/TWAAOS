@@ -121,3 +121,15 @@ class UserRepository(IUserRepository):
             import logging
             logging.error(f"Error in user repository find_by_filters: {str(e)}")
             raise
+
+    async def get_by_role(self, role: str) -> List[User]:
+        """Get all users with a specific role.
+        
+        Args:
+            role (str): The role to filter users by (e.g., 'SG', 'CD', 'SEC', 'ADM')
+            
+        Returns:
+            List[User]: List of users with the specified role
+        """
+        result = await self.db.execute(select(User).filter(User.role == role))
+        return result.scalars().all()

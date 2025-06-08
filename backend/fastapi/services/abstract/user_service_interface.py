@@ -54,3 +54,15 @@ class IUserService(ABC):
             List[UserResponse]: List of matching users
         """
         pass
+    
+    @abstractmethod
+    async def get_users_by_role(self, role: str) -> List[UserResponse]:
+        """Get all users with a specific role.
+        
+        Args:
+            role (str): The role to filter users by (e.g., 'SG', 'CD', 'SEC', 'ADM')
+            
+        Returns:
+            List[UserResponse]: List of users with the specified role
+        """
+        pass

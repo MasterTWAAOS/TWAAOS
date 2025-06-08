@@ -1,15 +1,20 @@
 from typing import List, Optional
 from datetime import datetime
+import logging
 from fastapi import HTTPException
 
 from models.config import Config
 from models.DTOs.config_dto import ConfigResponse
 from repositories.abstract.config_repository_interface import IConfigRepository
 from services.abstract.config_service_interface import IConfigService
+from services.abstract.email_service_interface import IEmailService
+
+logger = logging.getLogger(__name__)
 
 class ConfigService(IConfigService):
-    def __init__(self, config_repository: IConfigRepository):
+    def __init__(self, config_repository: IConfigRepository, email_service: Optional[IEmailService] = None):
         self.config_repository = config_repository
+        self.email_service = email_service
 
     async def get_current_config(self) -> Optional[ConfigResponse]:
         """Get the current/latest configuration"""
@@ -46,6 +51,24 @@ class ConfigService(IConfigService):
             start_date=start_date, 
             end_date=end_date
         )
+        
+        # Format dates for display in email
+        start_date_formatted = start_date.strftime("%d-%m-%Y")
+        end_date_formatted = end_date.strftime("%d-%m-%Y")
+        
+        # Send email notification to all SG users about the new exam period
+        if self.email_service:
+            try:
+                await self.email_service.notify_sg_users_about_new_exam_period(
+                    start_date=start_date_formatted,
+                    end_date=end_date_formatted
+                )
+                logger.info(f"Sent exam period notification emails for period {start_date_formatted} to {end_date_formatted}")
+            except Exception as e:
+                logger.error(f"Failed to send exam period notification emails: {e}")
+                # Don't fail the operation if email sending fails
+        else:
+            logger.warning("Email service not available - no notifications sent for new exam period")
         
         return ConfigResponse.model_validate(created_config)
         

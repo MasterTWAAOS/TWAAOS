@@ -36,6 +36,7 @@ from services.sync_service import SyncService
 from services.config_service import ConfigService
 from services.excel_service import ExcelService
 from services.exam_service import ExamService
+from services.email_service import EmailService
 
 # Service interface imports
 from services.abstract.user_service_interface import IUserService
@@ -50,6 +51,7 @@ from services.abstract.sync_service_interface import ISyncService
 from services.abstract.config_service_interface import IConfigService
 from services.abstract.excel_service_interface import IExcelService
 from services.abstract.exam_service_interface import IExamService
+from services.abstract.email_service_interface import IEmailService
 
 from config.database_provider import get_db_session
 
@@ -172,9 +174,15 @@ class Container(containers.DeclarativeContainer):
         schedule_service=schedule_service
     )
     
+    email_service = providers.Factory(
+        EmailService,
+        user_service=user_service
+    )
+    
     config_service = providers.Factory(
         ConfigService,
-        config_repository=config_repository
+        config_repository=config_repository,
+        email_service=email_service
     )
     
     excel_service = providers.Factory(
