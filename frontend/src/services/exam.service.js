@@ -76,7 +76,21 @@ class ExamService {
    * @returns {Promise} API Response
    */
   updateExam(examId, examData) {
-    return apiClient.put(`/exams/${examId}`, examData)
+    return apiClient.put(`/excel-templates/exams/${examId}`, examData)
+  }
+  
+  /**
+   * Generate Excel file with exam information grouped by program, year, and group
+   * with teacher email and contact details
+   * @returns {Promise} API Response with Excel file as blob
+   */
+  generateExamExcel() {
+    return apiClient.get('/excel-templates/exams/generate-excel', {
+      responseType: 'blob',
+      headers: {
+        'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      }
+    })
   }
 }
 

@@ -118,6 +118,18 @@ class ExcelService(IExcelService):
                         result["failed_count"] += 1
                         continue
                     
+                    # Check if user already exists by email
+                    existing_user = await self.user_service.get_user_by_email(leader['email'])
+                    
+                    if existing_user:
+                        # User already exists, log and skip (don't count as error)
+                        logger.info(f"User with email {leader['email']} already exists. Skipping.")
+                        # Track skipped users separately
+                        if "skipped_count" not in result:
+                            result["skipped_count"] = 0
+                        result["skipped_count"] += 1
+                        continue
+                    
                     # Create user object
                     user_data = {
                         "firstName": leader['firstName'],
@@ -148,11 +160,22 @@ class ExcelService(IExcelService):
                     logger.error(error_message)
             
             # Update success status based on results
-            if result["failed_count"] > 0 and result["created_count"] == 0:
+            skipped_count = result.get("skipped_count", 0)
+            
+            if result["failed_count"] > 0 and result["created_count"] == 0 and skipped_count == 0:
                 result["success"] = False
                 result["message"] = "Failed to process any group leaders"
-            elif result["failed_count"] > 0:
-                result["message"] = f"Processed {result['created_count']} group leaders with {result['failed_count']} errors"
+            elif result["created_count"] > 0 or skipped_count > 0:
+                # Create a message that includes created and skipped counts
+                message_parts = []
+                if result["created_count"] > 0:
+                    message_parts.append(f"Created {result['created_count']} group leaders")
+                if skipped_count > 0:
+                    message_parts.append(f"Skipped {skipped_count} already existing users")
+                if result["failed_count"] > 0:
+                    message_parts.append(f"Encountered {result['failed_count']} errors")
+                
+                result["message"] = ". ".join(message_parts)
             
             return result
             

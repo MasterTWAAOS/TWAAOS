@@ -23,6 +23,11 @@ class IExcelTemplateService(ABC):
     async def get_template_by_group_and_type(self, group_id: int, template_type: TemplateType) -> Optional[ExcelTemplateResponse]:
         """Get template by group ID and type"""
         pass
+    
+    @abstractmethod
+    async def get_templates_by_type(self, template_type: TemplateType, name: Optional[str] = None) -> List[ExcelTemplateResponse]:
+        """Get templates by type, optionally filtered by name"""
+        pass
         
     @abstractmethod
     async def get_file_by_id(self, template_id: int) -> Optional[bytes]:
@@ -53,4 +58,13 @@ class IExcelTemplateService(ABC):
     @abstractmethod
     async def delete_template(self, template_id: int) -> bool:
         """Delete a template"""
+        pass
+        
+    @abstractmethod
+    async def get_subject_teacher_data(self):
+        """Fetch subject data with teacher information for exam Excel report
+        
+        Returns:
+            list: A list of dictionaries containing subject and teacher data grouped by program, year, and group
+        """
         pass

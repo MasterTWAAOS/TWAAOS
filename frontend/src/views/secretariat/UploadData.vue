@@ -103,84 +103,22 @@
           Puteți sincroniza direct datele de la API-urile USV pentru a obține cele mai recente informații despre facultăți, 
           programe de studii, grupe, săli și cadre didactice.
         </p>
-        <div class="p-grid">
-          <div class="p-col-12 p-md-4">
-            <Card class="sync-card">
-              <template #title>
-                <span>Sincronizare Grupe</span>
-              </template>
-              <template #content>
-                <p>Sincronizează toate grupele aferente facultății FIESC din API-ul USV.</p>
-                <Button 
-                  icon="pi pi-users" 
-                  label="Sincronizare Grupe" 
-                  @click="syncGroups"
-                  :loading="syncing.groups"
-                  class="p-button-info"
-                />
-                <div v-if="syncStatus.groups" class="sync-status">
-                  <i :class="getSyncIconClass(syncStatus.groups.success)"></i>
-                  <span>{{ syncStatus.groups.message }}</span>
-                </div>
-              </template>
-            </Card>
-          </div>
-          
-          <div class="p-col-12 p-md-4">
-            <Card class="sync-card">
-              <template #title>
-                <span>Sincronizare Săli</span>
-              </template>
-              <template #content>
-                <p>Sincronizează toate sălile disponibile din API-ul USV.</p>
-                <Button 
-                  icon="pi pi-building" 
-                  label="Sincronizare Săli" 
-                  @click="syncRooms"
-                  :loading="syncing.rooms"
-                  class="p-button-info"
-                />
-                <div v-if="syncStatus.rooms" class="sync-status">
-                  <i :class="getSyncIconClass(syncStatus.rooms.success)"></i>
-                  <span>{{ syncStatus.rooms.message }}</span>
-                </div>
-              </template>
-            </Card>
-          </div>
-          
-          <div class="p-col-12 p-md-4">
-            <Card class="sync-card">
-              <template #title>
-                <span>Sincronizare Cadre Didactice</span>
-              </template>
-              <template #content>
-                <p>Sincronizează toate cadrele didactice din API-ul USV.</p>
-                <Button 
-                  icon="pi pi-user" 
-                  label="Sincronizare Cadre" 
-                  @click="syncProfessors"
-                  :loading="syncing.professors"
-                  class="p-button-info"
-                />
-                <div v-if="syncStatus.professors" class="sync-status">
-                  <i :class="getSyncIconClass(syncStatus.professors.success)"></i>
-                  <span>{{ syncStatus.professors.message }}</span>
-                </div>
-              </template>
-            </Card>
-          </div>
+        
+        <div class="sync-status p-mb-3" v-if="syncStatus.all">
+          <i :class="[getSyncIconClass(syncStatus.all.success), 'sync-icon']"></i>
+          <span>{{ syncStatus.all.message }}</span>
         </div>
         
-        <div class="p-mt-3">
+        <div>
           <Button 
             icon="pi pi-sync" 
-            label="Sincronizare Completă" 
-            @click="syncAll"
+            label="Sincronizare date ORAR USV" 
+            @click="syncData"
             :loading="syncing.all"
             class="p-button-success p-button-lg"
           />
           <small class="p-d-block p-mt-2">
-            Această acțiune va sincroniza toate datele: grupe, săli și cadre didactice.
+            Această acțiune va sincroniza toate datele din API-urile USV: grupe, săli și cadre didactice.
           </small>
         </div>
       </template>
@@ -226,19 +164,23 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { defineComponent, ref, onMounted } from 'vue'
+import excelTemplateService from '@/services/excel-template.service'
 import { useStore } from 'vuex'
 import FileUpload from 'primevue/fileupload'
 import { saveAs } from 'file-saver'
-import syncService from '@/services/sync.service'
+import adminService from '@/services/admin.service'
 
-export default {
+export default defineComponent({
   name: 'UploadDataView',
   components: {
     FileUpload
   },
   setup() {
+    // Get store for notifications
     const store = useStore()
+    
+    // Initialize all objects with default values
     
     // Upload status tracking
     const uploads = ref({
@@ -272,72 +214,106 @@ export default {
     
     // Loading state for other operations
     const loading = ref({
-      refreshData: false
+      refreshData: false,
+      downloadTemplate: false
     })
     
     // Function to download Excel templates
-    const downloadTemplate = (templateType) => {
+    /**
+     * Downloads a template for the selected type
+     * @param {string} templateType - Type of template to download
+     */
+    const downloadTemplate = async (templateType) => {
       try {
-        // This would connect to your API to download the template
+        if (loading.value) loading.value.refreshData = true
         
-        if (templateType === 'group-leaders') {
-          // Create a simple Excel template for group leaders
-          // We'll use a library like exceljs or xlsx in a real implementation
-          // For now, we'll create a simple CSV content and convert it to a Blob
-          
-          const headers = ['lastName', 'firstName', 'email', 'groupName']
-          const exampleRow = ['Popescu', 'Ion', 'ion.popescu@student.usv.ro', '3103B']
-          
-          // Create CSV content
-          const csvContent = [
-            headers.join(','),
-            exampleRow.join(',')
-          ].join('\n')
-          
-          // Create a Blob from the CSV content
-          const blob = new Blob([csvContent], { type: 'text/csv' })
-          
-          // Create a download link and trigger the download
-          const url = URL.createObjectURL(blob)
-          const link = document.createElement('a')
-          link.href = url
-          link.download = 'sefi_de_grupa_template.csv'
-          document.body.appendChild(link)
-          link.click()
-          document.body.removeChild(link)
-          
-          // In a real implementation, you would request the template from the server
-          // For example:
-          // const response = await fetch(`/api/excel-templates/download/group-leaders`)
-          // const blob = await response.blob()
-          // const url = URL.createObjectURL(blob)
-          // ... download as above
-          
-          store.dispatch('notifications/showNotification', {
-            severity: 'success',
-            summary: 'Descărcare Reușită',
-            detail: `Template-ul pentru Șefi de Grupă a fost descărcat cu succes.`,
-            life: 3000
-          })
-        } else {
-          // For other template types, we'll keep the original behavior
-          // In a real implementation, you would request the template from the server
-          // For example:
-          // const response = await fetch(`/api/templates/${templateType}`)
-          // const blob = await response.blob()
-          
-          // For the example, we'll simulate a delay and then create a dummy message
-          setTimeout(() => {
-            // This would download the actual file in a real implementation
-            store.dispatch('notifications/showNotification', {
-              severity: 'success',
-              summary: 'Descărcare Reușită',
-              detail: `Template-ul a fost descărcat cu succes.`,
-              life: 3000
-            })
-          }, 1000)
+        // Map frontend template type to backend enum
+        const templateTypeMap = {
+          'subjects': 'cd',     // Course/Discipline
+          'group-leaders': 'sg', // Student Group Leaders
+          'rooms': 'sali'       // Rooms
         }
+        
+        const backendType = templateTypeMap[templateType]
+        if (!backendType) {
+          throw new Error(`Tipul de template '${templateType}' nu este valid.`)
+        }
+        
+        // For group leaders we'll look for a specific name
+        let searchName = null
+        if (templateType === 'group-leaders') {
+          searchName = 'SG_upload' // Specific name for group leader template
+        }
+        
+        // Get templates of the specified type using the service
+        const response = await excelTemplateService.getTemplatesByType(backendType, searchName)
+        
+        const templates = response.data
+        if (!templates || templates.length === 0) {
+          throw new Error(`Nu există template pentru ${templateType}`)
+        }
+        
+        // Use the first template found
+        const template = templates[0]
+        
+        // Now download the actual template file using the service
+        const downloadResponse = await excelTemplateService.downloadTemplate(template.id)
+        
+        // Extract blob from axios response and create download link
+        const blob = new Blob([downloadResponse.data], { 
+          type: downloadResponse.headers ? downloadResponse.headers['content-type'] : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+        })
+        const url = window.URL.createObjectURL(blob)
+        
+        const link = document.createElement('a')
+        link.href = url
+        
+        // Get filename from content-disposition or use a default
+        const contentDisposition = downloadResponse.headers ? downloadResponse.headers['content-disposition'] : null
+        let filename = null;
+        if (contentDisposition) {
+          const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+          const matches = filenameRegex.exec(contentDisposition);
+          if (matches && matches[1]) {
+            filename = matches[1].replace(/['"]/g, '');
+          }
+        }
+        
+        if (!filename) {
+          // Fallback filename
+          const templateNames = {
+            'subjects': 'template_discipline.xlsx',
+            'group-leaders': 'template_sefi_grupa.xlsx',
+            'rooms': 'template_sali.xlsx'
+          }
+          filename = templateNames[templateType] || `template_${templateType}.xlsx`
+        }
+        
+        link.download = filename;
+        
+        // Trigger download
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        
+        // Clean up URL object
+        window.URL.revokeObjectURL(url)
+        
+        // Show success notification
+        const templateLabels = {
+          'subjects': 'Discipline',
+          'group-leaders': 'Șefi de Grupă',
+          'rooms': 'Săli'
+        }
+        
+        store.dispatch('notifications/showNotification', {
+          severity: 'success',
+          summary: 'Descărcare Reușită',
+          detail: `Template-ul pentru ${templateLabels[templateType]} a fost descărcat cu succes.`,
+          life: 3000
+        })
       } catch (error) {
+        console.error('Error downloading template:', error)
         store.dispatch('notifications/showNotification', {
           severity: 'error',
           summary: 'Eroare Descărcare',
@@ -478,123 +454,8 @@ export default {
       }
     }
     
-    // Synchronization functions - these would connect to the Flask sync API
-    const syncGroups = async () => {
-      try {
-        syncing.value.groups = true
-        syncStatus.value.groups = null
-        
-        // Call the sync API - this would connect to our Flask service
-        // const response = await syncService.syncGroups()
-        
-        // Mock timeout to simulate API call
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        
-        // Update status
-        syncStatus.value.groups = { 
-          success: true, 
-          message: 'Sincronizare reușită! 21 grupe au fost actualizate.' 
-        }
-        
-        store.dispatch('notifications/showNotification', {
-          severity: 'success',
-          summary: 'Sincronizare Reușită',
-          detail: 'Grupele au fost sincronizate cu succes.',
-          life: 3000
-        })
-      } catch (error) {
-        syncStatus.value.groups = { 
-          success: false, 
-          message: error.message || 'A apărut o eroare la sincronizarea grupelor.' 
-        }
-        
-        store.dispatch('notifications/showNotification', {
-          severity: 'error',
-          summary: 'Eroare Sincronizare',
-          detail: error.message || 'A apărut o eroare la sincronizarea grupelor.',
-          life: 5000
-        })
-      } finally {
-        syncing.value.groups = false
-      }
-    }
-    
-    const syncRooms = async () => {
-      try {
-        syncing.value.rooms = true
-        syncStatus.value.rooms = null
-        
-        // Mock timeout to simulate API call
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        
-        // Update status
-        syncStatus.value.rooms = { 
-          success: true, 
-          message: 'Sincronizare reușită! 38 săli au fost actualizate.' 
-        }
-        
-        store.dispatch('notifications/showNotification', {
-          severity: 'success',
-          summary: 'Sincronizare Reușită',
-          detail: 'Sălile au fost sincronizate cu succes.',
-          life: 3000
-        })
-      } catch (error) {
-        syncStatus.value.rooms = { 
-          success: false, 
-          message: error.message || 'A apărut o eroare la sincronizarea sălilor.' 
-        }
-        
-        store.dispatch('notifications/showNotification', {
-          severity: 'error',
-          summary: 'Eroare Sincronizare',
-          detail: error.message || 'A apărut o eroare la sincronizarea sălilor.',
-          life: 5000
-        })
-      } finally {
-        syncing.value.rooms = false
-      }
-    }
-    
-    const syncProfessors = async () => {
-      try {
-        syncing.value.professors = true
-        syncStatus.value.professors = null
-        
-        // Mock timeout to simulate API call
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        
-        // Update status
-        syncStatus.value.professors = { 
-          success: true, 
-          message: 'Sincronizare reușită! 47 cadre didactice au fost actualizate.' 
-        }
-        
-        store.dispatch('notifications/showNotification', {
-          severity: 'success',
-          summary: 'Sincronizare Reușită',
-          detail: 'Cadrele didactice au fost sincronizate cu succes.',
-          life: 3000
-        })
-      } catch (error) {
-        syncStatus.value.professors = { 
-          success: false, 
-          message: error.message || 'A apărut o eroare la sincronizarea cadrelor didactice.' 
-        }
-        
-        store.dispatch('notifications/showNotification', {
-          severity: 'error',
-          summary: 'Eroare Sincronizare',
-          detail: error.message || 'A apărut o eroare la sincronizarea cadrelor didactice.',
-          life: 5000
-        })
-      } finally {
-        syncing.value.professors = false
-      }
-    }
-    
-    // Synchronize all data at once - this connects to our Flask synchronization system
-    const syncAll = async () => {
+    // Synchronize data using adminService.syncData() - this uses the FastAPI endpoint
+    const syncData = async () => {
       try {
         syncing.value.all = true
         syncStatus.value.all = null
@@ -606,39 +467,36 @@ export default {
           life: 3000
         })
         
-        // Call the sync API to fetch all data - this would access our Flask sync service that handles USV API calls
-        await syncService.syncAll()
+        // Call the sync API via admin service
+        await adminService.syncData()
         
-        // Update all sync statuses
-        syncStatus.value.groups = { 
+        // Update sync status
+        syncStatus.value.all = { 
           success: true, 
-          message: 'Sincronizare reușită! 21 grupe actualizate.' 
+          message: 'Toate datele au fost sincronizate cu succes!' 
         }
         
-        syncStatus.value.rooms = { 
-          success: true, 
-          message: 'Sincronizare reușită! 38 săli actualizate.' 
-        }
-        
-        syncStatus.value.professors = { 
-          success: true, 
-          message: 'Sincronizare reușită! 47 cadre didactice actualizate.' 
-        }
+        // Refresh counters
+        await refreshData()
         
         store.dispatch('notifications/showNotification', {
           severity: 'success',
           summary: 'Sincronizare Completă',
-          detail: 'Toate datele au fost sincronizate cu succes.',
-          life: 5000
+          detail: 'Toate datele au fost sincronizate cu succes din API-urile USV.',
+          life: 3000
         })
-        
-        // Refresh data summary
-        refreshData()
       } catch (error) {
+        console.error('Error syncing data:', error);
+        
+        syncStatus.value.all = { 
+          success: false, 
+          message: error.message || 'A apărut o eroare la sincronizarea datelor.' 
+        }
+        
         store.dispatch('notifications/showNotification', {
           severity: 'error',
           summary: 'Eroare Sincronizare',
-          detail: error.message || 'A apărut o eroare la sincronizarea datelor.',
+          detail: error.message || 'A apărut o eroare la sincronizarea datelor din API-urile USV.',
           life: 5000
         })
       } finally {
@@ -706,16 +564,13 @@ export default {
       uploadSubjects,
       uploadGroupLeaders,
       uploadRooms,
-      syncGroups,
-      syncRooms,
-      syncProfessors,
-      syncAll,
+      syncData,
       refreshData,
       getStatusClass,
       getSyncIconClass
     }
   }
-}
+})
 </script>
 
 <style lang="scss" scoped>

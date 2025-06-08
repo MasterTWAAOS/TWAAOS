@@ -138,6 +138,17 @@
           </TabPanel>
           
           <TabPanel header="Lista Examene">
+            <div class="p-d-flex p-jc-between p-ai-center p-mb-3">
+              <h2>Lista examene programate</h2>
+              <Button 
+                label="Actualizare" 
+                icon="pi pi-refresh" 
+                class="p-button-primary" 
+                @click="generateExamExcel"
+                :loading="generatingExcel"
+                :disabled="generatingExcel"
+              />
+            </div>
             <DataTable 
               :value="exams" 
               :paginator="true" 
@@ -343,7 +354,9 @@
 <script>
 import { ref, reactive, onMounted } from 'vue'
 import { useStore } from 'vuex'
+import axios from 'axios'
 import { useConfirm } from 'primevue/useconfirm'
+import examService from '@/services/exam.service'
 import Card from 'primevue/card'
 import TabView from 'primevue/tabview'
 import TabPanel from 'primevue/tabpanel'
@@ -383,8 +396,9 @@ export default {
     const store = useStore()
     const confirm = useConfirm()
     
-    // Loading state
+    // Loading states
     const loading = ref(false)
+    const generatingExcel = ref(false)
     
     // Submitted flag for validation
     const submitted = ref(false)
@@ -582,6 +596,70 @@ export default {
       }
     }
     
+    // Generate Excel file with exam information for all groups
+    const generateExamExcel = async () => {
+      try {
+        generatingExcel.value = true
+        store.dispatch('notifications/showNotification', {
+          severity: 'info',
+          summary: 'Generare Excel',
+          detail: 'Se generează lista de examene cu informații despre cadre didactice...',
+          life: 3000
+        })
+
+        // Call the API to generate the Excel file
+        const response = await examService.generateExamExcel()
+        
+        // Create a blob from the response
+        const blob = new Blob([response.data], { 
+          type: response.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+        })
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        
+        // Get filename from content-disposition or use default
+        const contentDisposition = response.headers ? response.headers['content-disposition'] : null
+        let filename = 'lista_examene.xlsx'
+        
+        if (contentDisposition) {
+          const filenameRegex = /filename[^;=\n]*=((['"]).??\2|[^;\n]*)/
+          const matches = filenameRegex.exec(contentDisposition)
+          if (matches && matches[1]) {
+            filename = matches[1].replace(/['"]*/g, '')
+          }
+        }
+        
+        link.download = filename
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+        
+        store.dispatch('notifications/showNotification', {
+          severity: 'success',
+          summary: 'Excel Generat',
+          detail: 'Lista de examene a fost generată cu succes.',
+          life: 3000
+        })
+        
+        // Refresh the exams list to show any updated information
+        fetchExams()
+      } catch (error) {
+        console.error('Error generating Excel:', error)
+        store.dispatch('notifications/showNotification', {
+          severity: 'error',
+          summary: 'Eroare Generare',
+          detail: error.message || 'A apărut o eroare la generarea listei de examene.',
+          life: 5000
+        })
+      } finally {
+        generatingExcel.value = false
+      }
+    }
+
     // Edit exam
     const editExam = (exam) => {
       editDialog.exam = { ...exam }
@@ -761,6 +839,7 @@ export default {
     
     return {
       loading,
+      generatingExcel,
       submitted,
       examForm,
       subjectOptions,
@@ -771,6 +850,7 @@ export default {
       professorOptions,
       exams,
       editDialog,
+      generateExamExcel,
       formatDate,
       calculateEndTime,
       getStatusSeverity,

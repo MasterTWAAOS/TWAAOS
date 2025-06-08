@@ -3,6 +3,8 @@ from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from dependency_injector.wiring import inject, Provide
 import io
+import pandas as pd
+from datetime import datetime
 
 from models.DTOs.excel_template_dto import ExcelTemplateResponse, TemplateType
 from services.abstract.excel_template_service_interface import IExcelTemplateService
@@ -100,6 +102,25 @@ async def get_template_by_group_and_type(
             detail=f"Template for group {group_id} with type '{type}' not found"
         )
     return template
+
+@router.get("/type/{type}", response_model=List[ExcelTemplateResponse], summary="Get templates by type", description="Retrieve templates by type (sali, cd, sg)")
+@inject
+async def get_templates_by_type(
+    type: TemplateType = Path(..., description="The template type (sali, cd, sg)"),
+    name: Optional[str] = Query(None, description="Optional template name to filter by"),
+    service: IExcelTemplateService = Depends(Provide[Container.excel_template_service])
+):
+    """Get templates by type, optionally filtered by name.
+    
+    Args:
+        type (TemplateType): The template type (sali, cd, sg)
+        name (Optional[str]): Optional template name to filter by
+        
+    Returns:
+        List[ExcelTemplateResponse]: List of templates matching the criteria
+    """
+    templates = await service.get_templates_by_type(type, name)
+    return templates
 
 @router.get("/download/{template_id}", summary="Download template file", description="Download the Excel file for a specific template")
 @inject
@@ -250,3 +271,81 @@ async def delete_template(
     # Delete the template
     await service.delete_template(template_id)
     return None
+
+
+@router.get("/exams/generate-excel", summary="Generate Excel with Exam Information", description="Generate an Excel file with exam information grouped by program, year, and group")
+@inject
+async def generate_exam_excel(
+    service: IExcelTemplateService = Depends(Provide[Container.excel_template_service])
+):
+    """Generate an Excel file with exam information grouped by program, year, and group.
+    
+    Returns:
+        StreamingResponse: The Excel file as a downloadable response
+        
+    Raises:
+        HTTPException: If there's an error generating the Excel file
+    """
+    print("[DEBUG] Controller - generate_exam_excel: Request received")
+    try:
+        # Get exam data from database
+        print("[DEBUG] Controller - Calling service.get_subject_teacher_data()")
+        subjects = await service.get_subject_teacher_data()
+        
+        if not subjects:
+            print("[DEBUG] Controller - No subjects returned from service")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No exam data available"
+            )
+        
+        print(f"[DEBUG] Controller - Received {len(subjects)} items from service")
+        print(f"[DEBUG] Controller - Sample columns: {list(subjects[0].keys()) if subjects else 'None'}")
+        
+        # Create a pandas DataFrame from the exam data
+        print("[DEBUG] Controller - Creating pandas DataFrame")
+        df = pd.DataFrame(subjects)
+        print(f"[DEBUG] Controller - DataFrame shape: {df.shape}")
+        
+        # Group the data by program, year, and group
+        # Note: We're using the structure from the database models
+        print("[DEBUG] Controller - Sorting DataFrame by program, year, group")
+        grouped_df = df.sort_values(by=['specializationShortName', 'studyYear', 'groupName'])
+        
+        # Create Excel file in memory
+        print("[DEBUG] Controller - Creating Excel file in memory")
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            grouped_df.to_excel(writer, sheet_name='Examene', index=False)
+            
+            # Auto-adjust columns width
+            print("[DEBUG] Controller - Auto-adjusting column widths")
+            worksheet = writer.sheets['Examene']
+            for i, col in enumerate(grouped_df.columns):
+                column_width = max(grouped_df[col].astype(str).map(len).max(), len(col)) + 2
+                worksheet.set_column(i, i, column_width)
+        
+        output.seek(0)
+        
+        # Create filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"lista_examene_{timestamp}.xlsx"
+        print(f"[DEBUG] Controller - Generated filename: {filename}")
+        
+        # Return the Excel file as a streaming response
+        print("[DEBUG] Controller - Returning StreamingResponse with Excel file")
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+    except Exception as e:
+        print(f"[DEBUG] Controller - Error: {str(e)}")
+        import traceback
+        print(f"[DEBUG] Controller - Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating Excel file: {str(e)}"
+        )

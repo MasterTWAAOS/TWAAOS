@@ -25,6 +25,11 @@ class IExcelTemplateRepository(ABC):
         pass
         
     @abstractmethod
+    async def get_by_type(self, template_type: TemplateType, name: Optional[str] = None) -> List[ExcelTemplate]:
+        """Get templates by type, optionally filtered by name"""
+        pass
+        
+    @abstractmethod
     async def get_file_by_id(self, template_id: int) -> Optional[bytes]:
         """Get the actual Excel file content by template ID"""
         pass
@@ -53,4 +58,13 @@ class IExcelTemplateRepository(ABC):
     @abstractmethod
     async def delete(self, template_id: int) -> bool:
         """Delete a template"""
+        pass
+        
+    @abstractmethod
+    async def get_subject_teacher_data(self):
+        """Get subject data with teacher information grouped by program, year, and group
+        
+        Returns:
+            List: List of subjects with associated teacher and group data
+        """
         pass

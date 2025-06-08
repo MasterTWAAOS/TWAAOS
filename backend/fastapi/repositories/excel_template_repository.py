@@ -30,6 +30,16 @@ class ExcelTemplateRepository(IExcelTemplateRepository):
             .filter(ExcelTemplate.type == template_type)
         )
         return result.scalar_one_or_none()
+    
+    async def get_by_type(self, template_type: TemplateType, name: Optional[str] = None) -> List[ExcelTemplate]:
+        query = select(ExcelTemplate).filter(ExcelTemplate.type == template_type)
+        
+        # Add name filter if provided
+        if name:
+            query = query.filter(ExcelTemplate.name.ilike(f"%{name}%"))
+            
+        result = await self.db.execute(query)
+        return result.scalars().all()
         
     async def get_file_by_id(self, template_id: int) -> Optional[bytes]:
         result = await self.db.execute(
@@ -94,3 +104,67 @@ class ExcelTemplateRepository(IExcelTemplateRepository):
             await self.db.commit()
             return True
         return False
+    
+    async def get_subject_teacher_data(self):
+        """Get subject data with teacher information grouped by program, year, and group
+        
+        Returns:
+            List: List of subjects with associated teacher and group data
+        """
+        print("[DEBUG] Repository - get_subject_teacher_data: Starting execution")
+        
+        from sqlalchemy import select, join
+        from sqlalchemy.orm import joinedload, aliased
+        from models.subject import Subject
+        from models.group import Group
+        from models.user import User
+        
+        # Create query to join Subject with Group and User (teacher)
+        print("[DEBUG] Repository - Building query with Subject, Group, and User joins")
+        
+        # Using joinedload to eagerly load related Group and User (teacher) objects
+        # This ensures we have all the data we need in one query
+        query = (
+            select(Subject)
+            .options(
+                joinedload(Subject.group),  # Loads the group relationship
+                joinedload(Subject.teacher)  # Loads the teacher relationship
+            )
+        )
+        
+        # Execute the query
+        print("[DEBUG] Repository - Executing database query")
+        result = await self.db.execute(query)
+        subjects = result.unique().scalars().all()
+        
+        # Log query results
+        print(f"[DEBUG] Repository - Query returned {len(subjects)} subjects")
+        if subjects:
+            print(f"[DEBUG] Repository - First subject: id={subjects[0].id}, name={subjects[0].name}")
+            try:
+                print(f"[DEBUG] Repository - First subject group: {subjects[0].group.name if subjects[0].group else 'None'}")
+            except Exception as e:
+                print(f"[DEBUG] Repository - Error accessing group: {str(e)}")
+            
+            try:
+                print(f"[DEBUG] Repository - First subject teacher: {subjects[0].teacher.lastName if subjects[0].teacher else 'None'} {subjects[0].teacher.firstName if subjects[0].teacher else ''}")
+            except Exception as e:
+                print(f"[DEBUG] Repository - Error accessing teacher: {str(e)}")
+        
+        # Sort the subjects by program, year, and group name using Python
+        # This avoids SQL-level ordering issues
+        try:
+            sorted_subjects = sorted(
+                subjects,
+                key=lambda x: (
+                    x.group.specializationShortName if x.group else '',
+                    x.group.studyYear if x.group else 0,
+                    x.group.name if x.group else ''
+                )
+            )
+            print(f"[DEBUG] Repository - Successfully sorted {len(sorted_subjects)} subjects")
+            return sorted_subjects
+        except Exception as e:
+            print(f"[DEBUG] Repository - Error sorting subjects: {str(e)}")
+            # Return unsorted subjects if sorting fails
+            return subjects

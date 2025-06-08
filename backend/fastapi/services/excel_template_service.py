@@ -36,6 +36,11 @@ class ExcelTemplateService(IExcelTemplateService):
         if template:
             return ExcelTemplateResponse.model_validate(template)
         return None
+    
+    async def get_templates_by_type(self, template_type: TemplateType, name: Optional[str] = None) -> List[ExcelTemplateResponse]:
+        """Get templates by type, optionally filtered by name"""
+        templates = await self.template_repository.get_by_type(template_type, name)
+        return [ExcelTemplateResponse.model_validate(template) for template in templates]
         
     async def get_file_by_id(self, template_id: int) -> Optional[bytes]:
         """Get the binary file content for a template"""
@@ -113,3 +118,49 @@ class ExcelTemplateService(IExcelTemplateService):
         # Check for valid Excel extensions
         valid_extensions = [".xlsx", ".xls", ".xlsm"]
         return any(filename.lower().endswith(ext) for ext in valid_extensions)
+    
+    async def get_subject_teacher_data(self):
+        """Fetch subject data with teacher information for exam Excel report
+        
+        Returns:
+            list: A list of dictionaries containing subject and teacher data grouped by program, year, and group
+        """
+        print("[DEBUG] Service - get_subject_teacher_data: Starting execution")
+        
+        # Use the repository to fetch data from the database
+        # This will join the subjects, groups, and users (teachers) tables
+        print("[DEBUG] Service - Calling repository.get_subject_teacher_data()")
+        query_result = await self.template_repository.get_subject_teacher_data()
+        
+        if not query_result:
+            print("[DEBUG] Service - No data returned from repository")
+            return []
+        
+        print(f"[DEBUG] Service - Repository returned {len(query_result)} items")
+        
+        # Format the data for the Excel report
+        print("[DEBUG] Service - Formatting data for Excel report")
+        formatted_data = []
+        for i, item in enumerate(query_result):
+            try:
+                formatted_item = {
+                    'specializationShortName': item.group.specializationShortName,
+                    'studyYear': item.group.studyYear,
+                    'groupName': item.group.name,
+                    'subjectName': item.name,
+                    'subjectShortName': item.shortName,
+                    'teacherName': f"{item.teacher.lastName} {item.teacher.firstName}",
+                    'teacherEmail': item.teacher.email,
+                    'teacherPhone': item.teacher.phone or 'N/A'  # Fixed: using 'phone' instead of 'phoneNumber'
+                }
+                formatted_data.append(formatted_item)
+            except Exception as e:
+                print(f"[DEBUG] Service - Error formatting item {i}: {str(e)}")
+                print(f"[DEBUG] Service - Item details: id={item.id}, name={item.name}")
+                # Continue with next item
+        
+        print(f"[DEBUG] Service - Formatted {len(formatted_data)} items for Excel")
+        if formatted_data:
+            print(f"[DEBUG] Service - Sample item: {formatted_data[0]}")
+        
+        return formatted_data
