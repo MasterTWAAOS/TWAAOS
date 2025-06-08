@@ -5,6 +5,195 @@
     <Card>
       <template #content>
         <TabView>
+          <TabPanel header="Lista Examene">
+            <div class="p-d-flex p-jc-between p-ai-center p-mb-3">
+              <h2>Lista examene programate</h2>
+              <Button 
+                label="Actualizare" 
+                icon="pi pi-refresh" 
+                class="p-button-primary" 
+                @click="generateExamExcel"
+                :loading="generatingExcel"
+                :disabled="generatingExcel"
+              />
+            </div>
+            <DataTable 
+              :value="exams" 
+              :paginator="true" 
+              :rows="10"
+              :loading="loading"
+              paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
+              currentPageReportTemplate="Afișare {first} până la {last} din {totalRecords} examene"
+              responsiveLayout="scroll"
+              filterDisplay="menu"
+              :rowHover="true"
+              removableSort
+            >
+              <template #empty>Nu există examene programate.</template>
+              <template #loading>Se încarcă examenele, vă rugăm așteptați...</template>
+              
+              <Column field="subject" header="Disciplină" :sortable="true" filterField="subject">
+                <template #body="slotProps">
+                  <span>{{ slotProps.data.subject.name }}</span>
+                </template>
+                <template #filter="{ filterModel, filterCallback }">
+                  <InputText v-model="filterModel.value" @input="filterCallback()" placeholder="Căutare..." class="p-column-filter" />
+                </template>
+              </Column>
+              
+              <Column field="date" header="Data" :sortable="true">
+                <template #body="slotProps">
+                  {{ formatDate(slotProps.data.date) }}
+                </template>
+              </Column>
+              
+              <Column field="startTime" header="Ora" :sortable="true">
+                <template #body="slotProps">
+                  {{ slotProps.data.startTime }} ({{ slotProps.data.duration }} ore)
+                </template>
+              </Column>
+              
+              <Column field="room.name" header="Sala" :sortable="true">
+                <template #body="slotProps">
+                  {{ slotProps.data.room.name }}
+                </template>
+              </Column>
+              
+              <Column field="professor.name" header="Profesor" :sortable="true">
+                <template #body="slotProps">
+                  {{ slotProps.data.professor.name }}
+                </template>
+                <template #filter="{ filterModel, filterCallback }">
+                  <InputText v-model="filterModel.value" @input="filterCallback()" placeholder="Căutare..." class="p-column-filter" />
+                </template>
+              </Column>
+              
+              <Column field="studyProgram" header="Program studiu" :sortable="true">
+                <template #body="slotProps">
+                  {{ slotProps.data.studyProgram }}
+                </template>
+                <template #filter="{ filterModel, filterCallback }">
+                  <InputText v-model="filterModel.value" @input="filterCallback()" placeholder="Căutare..." class="p-column-filter" />
+                </template>
+              </Column>
+              
+              <Column field="studyYear" header="An" :sortable="true">
+                <template #body="slotProps">
+                  {{ slotProps.data.studyYear }}
+                </template>
+              </Column>
+              
+              <Column field="groups" header="Grupe">
+                <template #body="slotProps">
+                  <div class="groups-chips">
+                    <Chip 
+                      v-for="group in slotProps.data.groups" 
+                      :key="group.id" 
+                      :label="group.name" 
+                      class="p-mr-1 p-mb-1"
+                    />
+                  </div>
+                </template>
+              </Column>
+              
+              <Column field="status" header="Status" :sortable="true">
+                <template #body="slotProps">
+                  <Tag :severity="getStatusSeverity(slotProps.data.status)">
+                    {{ getStatusLabel(slotProps.data.status) }}
+                  </Tag>
+                </template>
+              </Column>
+              
+              <Column header="Acțiuni" style="min-width:8rem">
+                <template #body="slotProps">
+                  <div class="action-buttons">
+                    <Button 
+                      icon="pi pi-pencil" 
+                      class="p-button-rounded p-button-success p-button-sm" 
+                      @click="editExam(slotProps.data)"
+                    />
+                    <Button 
+                      icon="pi pi-trash" 
+                      class="p-button-rounded p-button-danger p-button-sm" 
+                      @click="confirmDelete(slotProps.data)"
+                    />
+                  </div>
+                </template>
+              </Column>
+            </DataTable>
+          </TabPanel>
+          
+          <TabPanel header="Lista Sali">
+            <div class="room-list">
+              <div class="p-d-flex p-jc-between p-ai-center p-mb-3">
+                <h2>Lista săli disponibile</h2>
+                <Button 
+                  label="Actualizare" 
+                  icon="pi pi-refresh" 
+                  class="p-button-primary" 
+                  @click="generateRoomExcel"
+                  :loading="generatingRoomExcel"
+                  :disabled="generatingRoomExcel"
+                />
+              </div>
+              
+              <DataTable 
+                :value="rooms" 
+                :paginator="true" 
+                :rows="10"
+                :loading="loadingRooms"
+                paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
+                currentPageReportTemplate="Afișare {first} până la {last} din {totalRecords} săli"
+                responsiveLayout="scroll"
+                filterDisplay="menu"
+                :rowHover="true"
+                removableSort
+              >
+                <template #empty>Nu există săli înregistrate.</template>
+                <template #loading>Se încarcă sălile, vă rugăm așteptați...</template>
+                
+                <Column field="name" header="Nume" :sortable="true">
+                  <template #filter="{ filterModel, filterCallback }">
+                    <InputText v-model="filterModel.value" @input="filterCallback()" placeholder="Căutare..." class="p-column-filter" />
+                  </template>
+                </Column>
+                
+                <Column field="shortName" header="Nume scurt" :sortable="true">
+                </Column>
+                
+                <Column field="buildingName" header="Clădire" :sortable="true">
+                  <template #filter="{ filterModel, filterCallback }">
+                    <InputText v-model="filterModel.value" @input="filterCallback()" placeholder="Căutare..." class="p-column-filter" />
+                  </template>
+                </Column>
+                
+                <Column field="capacity" header="Capacitate" :sortable="true">
+                  <template #body="slotProps">
+                    {{ slotProps.data.capacity }} locuri
+                  </template>
+                </Column>
+                
+                <Column field="computers" header="Calculatoare" :sortable="true">
+                  <template #body="slotProps">
+                    {{ slotProps.data.computers }} buc
+                  </template>
+                </Column>
+                
+                <Column header="Acțiuni" style="min-width:8rem">
+                  <template #body="slotProps">
+                    <div class="action-buttons">
+                      <Button 
+                        icon="pi pi-search" 
+                        class="p-button-rounded p-button-info p-button-sm" 
+                        @click="viewRoom(slotProps.data)"
+                      />
+                    </div>
+                  </template>
+                </Column>
+              </DataTable>
+            </div>
+          </TabPanel>
+          
           <TabPanel header="Creare Examen">
             <div class="create-exam-form">
               <h2>Adăugare Examen Nou</h2>
@@ -136,120 +325,6 @@
               </div>
             </div>
           </TabPanel>
-          
-          <TabPanel header="Lista Examene">
-            <div class="p-d-flex p-jc-between p-ai-center p-mb-3">
-              <h2>Lista examene programate</h2>
-              <Button 
-                label="Actualizare" 
-                icon="pi pi-refresh" 
-                class="p-button-primary" 
-                @click="generateExamExcel"
-                :loading="generatingExcel"
-                :disabled="generatingExcel"
-              />
-            </div>
-            <DataTable 
-              :value="exams" 
-              :paginator="true" 
-              :rows="10"
-              :loading="loading"
-              paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
-              currentPageReportTemplate="Afișare {first} până la {last} din {totalRecords} examene"
-              responsiveLayout="scroll"
-              filterDisplay="menu"
-              :rowHover="true"
-              removableSort
-            >
-              <template #empty>Nu există examene programate.</template>
-              <template #loading>Se încarcă examenele, vă rugăm așteptați...</template>
-              
-              <Column field="subject" header="Disciplină" :sortable="true" filterField="subject">
-                <template #body="slotProps">
-                  <span>{{ slotProps.data.subject.name }}</span>
-                </template>
-                <template #filter="{ filterModel, filterCallback }">
-                  <InputText v-model="filterModel.value" @input="filterCallback()" placeholder="Căutare..." class="p-column-filter" />
-                </template>
-              </Column>
-              
-              <Column field="date" header="Data" :sortable="true">
-                <template #body="slotProps">
-                  {{ formatDate(slotProps.data.date) }}
-                </template>
-              </Column>
-              
-              <Column field="time" header="Ora" :sortable="true">
-                <template #body="slotProps">
-                  {{ slotProps.data.startTime }} - {{ calculateEndTime(slotProps.data.startTime, slotProps.data.duration) }}
-                </template>
-              </Column>
-              
-              <Column field="room.name" header="Sala" :sortable="true">
-                <template #body="slotProps">
-                  {{ slotProps.data.room.name }}
-                </template>
-              </Column>
-              
-              <Column field="professor.name" header="Profesor" :sortable="true">
-                <template #body="slotProps">
-                  {{ slotProps.data.professor.name }}
-                </template>
-                <template #filter="{ filterModel, filterCallback }">
-                  <InputText v-model="filterModel.value" @input="filterCallback()" placeholder="Căutare..." class="p-column-filter" />
-                </template>
-              </Column>
-              
-              <Column field="studyProgram" header="Program studiu" :sortable="true">
-                <template #body="slotProps">
-                  {{ slotProps.data.studyProgram }}
-                </template>
-                <template #filter="{ filterModel, filterCallback }">
-                  <InputText v-model="filterModel.value" @input="filterCallback()" placeholder="Căutare..." class="p-column-filter" />
-                </template>
-              </Column>
-              
-              <Column field="studyYear" header="An" :sortable="true">
-                <template #body="slotProps">
-                  {{ slotProps.data.studyYear }}
-                </template>
-              </Column>
-              
-              <Column field="groups" header="Grupe">
-                <template #body="slotProps">
-                  <div class="groups-chips">
-                    <Chip 
-                      v-for="group in slotProps.data.groups" 
-                      :key="group.id" 
-                      :label="group.name" 
-                      class="p-mr-1 p-mb-1"
-                    />
-                  </div>
-                </template>
-              </Column>
-              
-              <Column field="status" header="Status" :sortable="true" style="width: 12%">
-                <template #body="slotProps">
-                  <Tag :value="slotProps.data.status" :severity="getStatusSeverity(slotProps.data.status)" />
-                </template>
-              </Column>
-              
-              <Column header="Acțiuni" style="width: 10%">
-                <template #body="slotProps">
-                  <Button 
-                    icon="pi pi-pencil" 
-                    class="p-button-rounded p-button-success p-mr-1" 
-                    @click="editExam(slotProps.data)"
-                  />
-                  <Button 
-                    icon="pi pi-trash" 
-                    class="p-button-rounded p-button-danger" 
-                    @click="confirmDeleteExam(slotProps.data)"
-                  />
-                </template>
-              </Column>
-            </DataTable>
-          </TabPanel>
         </TabView>
       </template>
     </Card>
@@ -370,6 +445,46 @@
       </template>
     </Dialog>
     
+    <!-- Room Details Dialog -->
+    <Dialog 
+      v-model:visible="viewRoomDialog.visible" 
+      :style="{width: '450px'}" 
+      header="Detalii Sală" 
+      :modal="true"
+      :closable="true"
+    >
+      <div class="p-grid p-fluid" v-if="viewRoomDialog.room">
+        <div class="p-field p-col-12">
+          <label>Nume</label>
+          <div>{{ viewRoomDialog.room.name }}</div>
+        </div>
+        <div class="p-field p-col-12">
+          <label>Nume scurt</label>
+          <div>{{ viewRoomDialog.room.shortName }}</div>
+        </div>
+        <div class="p-field p-col-12">
+          <label>Clădire</label>
+          <div>{{ viewRoomDialog.room.buildingName }}</div>
+        </div>
+        <div class="p-field p-col-12">
+          <label>Capacitate</label>
+          <div>{{ viewRoomDialog.room.capacity }} locuri</div>
+        </div>
+        <div class="p-field p-col-12">
+          <label>Calculatoare</label>
+          <div>{{ viewRoomDialog.room.computers }} buc</div>
+        </div>
+      </div>
+      <template #footer>
+        <Button 
+          label="Închide" 
+          icon="pi pi-times" 
+          class="p-button-text" 
+          @click="viewRoomDialog.visible = false"
+        />
+      </template>
+    </Dialog>
+
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog></ConfirmDialog>
   </div>
@@ -381,6 +496,7 @@ import { useStore } from 'vuex'
 import axios from 'axios'
 import { useConfirm } from 'primevue/useconfirm'
 import examService from '@/services/exam.service'
+import roomService from '@/services/room.service'
 import Card from 'primevue/card'
 import TabView from 'primevue/tabview'
 import TabPanel from 'primevue/tabpanel'
@@ -423,6 +539,19 @@ export default {
     // Loading states
     const loading = ref(false)
     const generatingExcel = ref(false)
+    const loadingRooms = ref(false)
+    const generatingRoomExcel = ref(false)
+    
+    // Data lists
+    const exams = ref([])
+    const rooms = ref([])
+    
+    // Room dialog
+    const selectedRoom = ref(null)
+    const viewRoomDialog = reactive({
+      visible: false,
+      room: null
+    })
     
     // Submitted flag for validation
     const submitted = ref(false)
@@ -505,9 +634,6 @@ export default {
       { id: 4, name: 'Conf. Dr. Georgescu Radu' },
       { id: 5, name: 'Conf. Dr. Dumitrescu Elena' }
     ])
-    
-    // Exams list
-    const exams = ref([])
     
     // Format date
     const formatDate = (dateString) => {
@@ -620,6 +746,110 @@ export default {
       }
     }
     
+    // Load rooms data
+    const loadRooms = async () => {
+      try {
+        loadingRooms.value = true
+        
+        // Call the API to get real room data from the backend
+        const response = await roomService.getAllRooms()
+        
+        // Set the rooms data
+        rooms.value = response
+        
+        store.dispatch('notifications/showNotification', {
+          severity: 'success',
+          summary: 'Săli încărcate',
+          detail: `${rooms.value.length} săli au fost încărcate cu succes`,
+          life: 3000
+        })
+      } catch (error) {
+        console.error('Error loading rooms:', error)
+        
+        store.dispatch('notifications/showNotification', {
+          severity: 'error',
+          summary: 'Eroare',
+          detail: error.message || 'A apărut o eroare la încărcarea sălilor',
+          life: 5000
+        })
+      } finally {
+        loadingRooms.value = false
+      }
+    }
+
+    // Generate Excel file with room information
+    const generateRoomExcel = async () => {
+      try {
+        generatingRoomExcel.value = true
+        store.dispatch('notifications/showNotification', {
+          severity: 'info',
+          summary: 'Generare Excel',
+          detail: 'Se generează lista de săli cu informații complete...',
+          life: 3000
+        })
+
+        // Call the API to generate the Excel file
+        const response = await roomService.generateRoomExcel()
+        
+        // Create a blob from the response
+        const blob = new Blob([response.data], { 
+          type: response.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+        })
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        
+        // Get filename from content-disposition or use default
+        const contentDisposition = response.headers ? response.headers['content-disposition'] : null
+        let filename = 'lista_sali.xlsx'
+        
+        if (contentDisposition) {
+          // Extract filename from the Content-Disposition header
+          // eslint-disable-next-line no-useless-escape
+          const filenameRegex = /filename[^;=\\n]*=((['\"]).*?\\2|[^;\\n]*)/
+          const matches = filenameRegex.exec(contentDisposition)
+          if (matches && matches[1]) {
+            // eslint-disable-next-line no-useless-escape
+            filename = matches[1].replace(/['\"]/g, '')
+          }
+        }
+        
+        link.setAttribute('download', filename)
+        document.body.appendChild(link)
+        link.click()
+        
+        // Clean up
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(link)
+        
+        store.dispatch('notifications/showNotification', {
+          severity: 'success',
+          summary: 'Excel Generat',
+          detail: 'Lista de săli a fost generată și descărcată cu succes',
+          life: 3000
+        })
+      } catch (error) {
+        console.error('Error generating room Excel:', error)
+        
+        store.dispatch('notifications/showNotification', {
+          severity: 'error',
+          summary: 'Eroare',
+          detail: error.message || 'A apărut o eroare la generarea Excel-ului',
+          life: 5000
+        })
+      } finally {
+        generatingRoomExcel.value = false
+      }
+    }
+
+    // View room details
+    const viewRoom = (room) => {
+      viewRoomDialog.room = {...room}
+      viewRoomDialog.visible = true
+    }
+
     // Generate Excel file with exam information for all groups
     const generateExamExcel = async () => {
       try {
@@ -883,6 +1113,7 @@ export default {
     // Initialize
     onMounted(() => {
       loadExams()
+      loadRooms()
     })
     
     return {
@@ -907,7 +1138,14 @@ export default {
       editExam,
       cancelEdit,
       updateExam,
-      confirmDeleteExam
+      confirmDeleteExam,
+      rooms,
+      loadingRooms,
+      generatingRoomExcel,
+      loadRooms,
+      generateRoomExcel,
+      viewRoom,
+      viewRoomDialog
     }
   }
 }
