@@ -33,12 +33,6 @@
             <span>Descărcare Rapoarte</span>
           </router-link>
         </li>
-        <li>
-          <a href="#" @click.prevent="fetchAndSyncData" class="menu-item">
-            <i class="pi pi-sync"></i>
-            <span>Sincronizare Date</span>
-          </a>
-        </li>
       </ul>
     </div>
   </div>

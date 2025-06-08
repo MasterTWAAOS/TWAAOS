@@ -21,7 +21,7 @@
               responsiveLayout="scroll"
               :loading="loading.activePeriods"
             >
-              <Column field="name" header="Denumire" :sortable="true"></Column>
+              <!-- ID field hidden as requested -->
               <Column field="startDate" header="Data Început" :sortable="true">
                 <template #body="slotProps">
                   {{ formatDate(slotProps.data.startDate) }}
@@ -32,12 +32,9 @@
                   {{ formatDate(slotProps.data.endDate) }}
                 </template>
               </Column>
-              <Column field="status" header="Status" :sortable="true" style="width: 15%">
+              <Column field="modified_at" header="Data Modificării" :sortable="true">
                 <template #body="slotProps">
-                  <Tag 
-                    :value="slotProps.data.active ? 'Activ' : 'Inactiv'" 
-                    :severity="slotProps.data.active ? 'success' : 'secondary'"
-                  />
+                  {{ formatDate(slotProps.data.modified_at) }}
                 </template>
               </Column>
               <Column header="Acțiuni" style="width: 15%">
@@ -48,8 +45,8 @@
                     @click="editPeriod(slotProps.data)"
                   />
                   <Button 
-                    :icon="slotProps.data.active ? 'pi pi-power-off' : 'pi pi-check'" 
-                    :class="slotProps.data.active ? 'p-button-danger p-button-sm' : 'p-button-success p-button-sm'" 
+                    icon="pi pi-trash"
+                    class="p-button-danger p-button-sm" 
                     @click="togglePeriodStatus(slotProps.data)"
                   />
                 </template>
@@ -63,21 +60,7 @@
                 {{ editMode ? 'Editare Perioadă' : 'Adăugare Perioadă Nouă' }}
               </template>
               <template #content>
-                <div class="p-fluid">
-                  <div class="p-field p-mb-3">
-                    <label for="periodName">Denumire Perioadă <span class="required-field">*</span></label>
-                    <InputText 
-                      id="periodName" 
-                      v-model="periodForm.name" 
-                      placeholder="ex: Sesiune Vara 2025"
-                      :class="{'p-invalid': v$.name.$invalid && v$.name.$dirty}"
-                      @blur="v$.name.$touch()"
-                    />
-                    <small class="p-error" v-if="v$.name.$invalid && v$.name.$dirty">
-                      {{ v$.name.$errors[0].$message }}
-                    </small>
-                  </div>
-                  
+                <div class="p-fluid">                  
                   <div class="p-field p-mb-3">
                     <label for="dateRange">Interval Calendar <span class="required-field">*</span></label>
                     <Calendar 
@@ -92,33 +75,9 @@
                     <small class="p-error" v-if="v$.dateRange.$invalid && v$.dateRange.$dirty">
                       {{ v$.dateRange.$errors[0].$message }}
                     </small>
-                  </div>
-                  
-                  <div class="p-field p-mb-3">
-                    <label for="periodType">Tip Perioadă <span class="required-field">*</span></label>
-                    <Dropdown 
-                      id="periodType" 
-                      v-model="periodForm.type" 
-                      :options="periodTypes" 
-                      optionLabel="name"
-                      optionValue="value"
-                      placeholder="Selectați tipul de perioadă"
-                      :class="{'p-invalid': v$.type.$invalid && v$.type.$dirty}"
-                      @blur="v$.type.$touch()"
-                    />
-                    <small class="p-error" v-if="v$.type.$invalid && v$.type.$dirty">
-                      {{ v$.type.$errors[0].$message }}
+                    <small class="p-info">
+                      Selecți o dată de început și una de sfârșit pentru perioada de examene.
                     </small>
-                  </div>
-                  
-                  <div class="p-field">
-                    <label for="periodDescription">Descriere (opțional)</label>
-                    <Textarea 
-                      id="periodDescription" 
-                      v-model="periodForm.description" 
-                      rows="3" 
-                      placeholder="Adăugați o descriere pentru această perioadă" 
-                    />
                   </div>
                   
                   <div class="form-actions">
@@ -155,17 +114,14 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useConfirm } from 'primevue/useconfirm'
 import { useVuelidate } from '@vuelidate/core'
-import { required, minLength } from '@vuelidate/validators'
+import { required } from '@vuelidate/validators'
 import Card from 'primevue/card'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
-import InputText from 'primevue/inputtext'
 import Calendar from 'primevue/calendar'
-import Dropdown from 'primevue/dropdown'
-import Textarea from 'primevue/textarea'
-import Tag from 'primevue/tag'
 import ConfirmDialog from 'primevue/confirmdialog'
+import configService from '@/services/config.service'
 
 export default {
   name: 'ConfigurePeriodsView',
@@ -174,11 +130,7 @@ export default {
     DataTable,
     Column,
     Button,
-    InputText,
     Calendar,
-    Dropdown,
-    Textarea,
-    Tag,
     ConfirmDialog
   },
   setup() {
@@ -204,22 +156,17 @@ export default {
       { name: 'Sesiune Restanțe', value: 'RESIT_SESSION' }
     ])
     
-    // Form state
+    // Form data - simplified to match database structure
     const periodForm = reactive({
-      name: '',
-      dateRange: null,
-      type: null,
-      description: ''
+      dateRange: null
     })
     
     // Form submitting state
     const formSubmitting = ref(false)
     
-    // Form validation rules
+    // Form validation rules - simplified to match database fields
     const rules = computed(() => ({
-      name: { required, minLength: minLength(3) },
-      dateRange: { required },
-      type: { required }
+      dateRange: { required }
     }))
     
     // Create vuelidate instance
@@ -240,46 +187,19 @@ export default {
     const loadActivePeriods = async () => {
       try {
         loading.activePeriods = true
+        // Use config service to fetch all configs
+        const response = await configService.getAllConfigs()
         
-        // In a real implementation, call the API
-        // const response = await periodService.getActivePeriods()
-        // activePeriods.value = response.data
-        
-        // For demo purposes, use mock data
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        activePeriods.value = [
-          {
-            id: 1,
-            name: 'Sesiune Iarnă 2025',
-            startDate: '2025-01-05',
-            endDate: '2025-01-25',
-            type: 'EXAM_SESSION',
-            description: 'Sesiune ordinară de iarnă pentru toate programele de studiu',
-            active: false
-          },
-          {
-            id: 2,
-            name: 'Sesiune Vară 2025',
-            startDate: '2025-06-05',
-            endDate: '2025-06-25',
-            type: 'EXAM_SESSION',
-            description: 'Sesiune ordinară de vară pentru toate programele de studiu',
-            active: true
-          },
-          {
-            id: 3,
-            name: 'Sesiune Restanțe Toamnă 2025',
-            startDate: '2025-09-01',
-            endDate: '2025-09-15',
-            type: 'RESIT_SESSION',
-            description: 'Sesiune de restanțe pentru toate programele de studiu',
-            active: false
-          }
-        ]
+        // Map to frontend format with just the fields we have
+        activePeriods.value = response.data.map(config => ({
+          id: config.id,
+          startDate: new Date(config.startDate),
+          endDate: new Date(config.endDate),
+          modified_at: new Date(config.modified_at || new Date())
+        }))
       } catch (error) {
         console.error('Error loading active periods:', error)
-        
+        store.commit('showToast', { severity: 'error', summary: 'Eroare', detail: 'Nu s-au putut încărca perioadele active' })
         store.dispatch('notifications/showNotification', {
           severity: 'error',
           summary: 'Eroare',
@@ -296,47 +216,42 @@ export default {
       editMode.value = true
       editId.value = period.id
       
-      // Set form values
-      periodForm.name = period.name
+      // Set form values - only dateRange is needed
       periodForm.dateRange = [new Date(period.startDate), new Date(period.endDate)]
-      periodForm.type = period.type
-      periodForm.description = period.description
     }
     
-    // Toggle period status
+    // Delete period (since we don't have a status field in the database)
     const togglePeriodStatus = (period) => {
-      const action = period.active ? 'dezactiva' : 'activa'
+      const formattedStart = formatDate(period.startDate)
+      const formattedEnd = formatDate(period.endDate)
       
       confirm.require({
-        header: `Confirmare ${action} perioadă`,
-        message: `Sunteți sigur că doriți să ${action}ți perioada "${period.name}"?`,
+        header: `Confirmare ștergere perioadă`,
+        message: `Sunteți sigur că doriți să ștergeți perioada ${formattedStart} - ${formattedEnd}?`,
         icon: 'pi pi-exclamation-triangle',
         acceptLabel: 'Da',
         rejectLabel: 'Nu',
         accept: async () => {
           try {
-            // In a real implementation, call the API
-            // await periodService.togglePeriodStatus(period.id)
+            // Delete the period
+            await configService.deleteConfig(period.id)
             
-            // For demo purposes, update local state
-            const index = activePeriods.value.findIndex(p => p.id === period.id)
-            if (index !== -1) {
-              activePeriods.value[index].active = !activePeriods.value[index].active
-            }
+            // Remove from local state
+            activePeriods.value = activePeriods.value.filter(p => p.id !== period.id)
             
             store.dispatch('notifications/showNotification', {
               severity: 'success',
-              summary: 'Status Actualizat',
-              detail: `Perioada a fost ${period.active ? 'dezactivată' : 'activată'} cu succes`,
+              summary: 'Perioadă Ștearsă',
+              detail: `Perioada de examen a fost ștearsă cu succes`,
               life: 3000
             })
           } catch (error) {
-            console.error('Error toggling period status:', error)
+            console.error('Error deleting period:', error)
             
             store.dispatch('notifications/showNotification', {
               severity: 'error',
               summary: 'Eroare',
-              detail: 'Nu s-a putut actualiza statusul perioadei',
+              detail: 'Nu s-a putut șterge perioada de examen',
               life: 5000
             })
           }
@@ -349,10 +264,7 @@ export default {
       v$.value.$reset()
       editMode.value = false
       editId.value = null
-      periodForm.name = ''
       periodForm.dateRange = null
-      periodForm.type = null
-      periodForm.description = ''
     }
     
     // Save period
@@ -372,62 +284,78 @@ export default {
       try {
         formSubmitting.value = true
         
-        // Create request data
+        // Create request data with proper naming to match backend expectations
+        // Format dates without timezone info to be compatible with PostgreSQL
+        const startDate = new Date(periodForm.dateRange[0]);
+        const endDate = new Date(periodForm.dateRange[1]);
+        
+        // Format as YYYY-MM-DD HH:MM:SS without timezone info
+        const formatDateWithoutTZ = (date) => {
+          return date.getFullYear() + '-' + 
+                 String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+                 String(date.getDate()).padStart(2, '0') + ' ' + 
+                 String(date.getHours()).padStart(2, '0') + ':' + 
+                 String(date.getMinutes()).padStart(2, '0') + ':' + 
+                 String(date.getSeconds()).padStart(2, '0');
+        };
+        
+        // Our service will convert these to snake_case when sending to API
         const data = {
-          name: periodForm.name,
-          startDate: periodForm.dateRange[0].toISOString().split('T')[0],
-          endDate: periodForm.dateRange[1].toISOString().split('T')[0],
-          type: periodForm.type,
-          description: periodForm.description
+          startDate: formatDateWithoutTZ(startDate),
+          endDate: formatDateWithoutTZ(endDate)
         }
         
+        console.log('Sending data to backend:', data);
+        
+        let response;
         if (editMode.value) {
-          // In a real implementation, call the API
-          // await periodService.updatePeriod(editId.value, data)
-          
-          // For demo purposes, update local state
-          const index = activePeriods.value.findIndex(p => p.id === editId.value)
-          if (index !== -1) {
-            activePeriods.value[index] = {
-              ...activePeriods.value[index],
-              ...data
-            }
-          }
+          // Update existing config via API
+          response = await configService.updateConfig(editId.value, data)
           
           store.dispatch('notifications/showNotification', {
             severity: 'success',
-            summary: 'Perioadă Actualizată',
-            detail: 'Perioada a fost actualizată cu succes',
+            summary: 'Perioadă Examen Actualizată',
+            detail: 'Perioada de examen a fost actualizată cu succes',
             life: 3000
           })
         } else {
-          // In a real implementation, call the API
-          // const response = await periodService.createPeriod(data)
-          
-          // For demo purposes, add to local state with a mock ID
-          activePeriods.value.push({
-            id: Date.now(),
-            ...data,
-            active: false
-          })
+          // Create new config via API
+          response = await configService.createConfig(data)
           
           store.dispatch('notifications/showNotification', {
             severity: 'success',
-            summary: 'Perioadă Creată',
-            detail: 'Perioada a fost creată cu succes',
+            summary: 'Perioadă Examen Creată',
+            detail: 'Perioada de examen a fost creată cu succes',
             life: 3000
           })
         }
+        
+        // Refresh the periods list
+        await loadActivePeriods()
         
         // Reset form
         resetForm()
       } catch (error) {
         console.error('Error saving period:', error)
+        console.error('Error response:', error.response?.data)
+        
+        // Create a more detailed error message
+        let errorDetail = 'Nu s-a putut salva perioada de examen'
+        
+        if (error.response?.data?.detail) {
+          if (Array.isArray(error.response.data.detail)) {
+            // Handle validation errors array
+            errorDetail = error.response.data.detail.map(err => `${err.loc.join('.')} - ${err.msg}`).join('; ')
+          } else {
+            // Handle string error
+            errorDetail = error.response.data.detail
+          }
+        }
         
         store.dispatch('notifications/showNotification', {
           severity: 'error',
-          summary: 'Eroare',
-          detail: 'Nu s-a putut salva perioada',
+          summary: 'Eroare Validare',
+          detail: errorDetail,
           life: 5000
         })
       } finally {
