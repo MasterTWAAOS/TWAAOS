@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any
 from datetime import date
 from models.DTOs.schedule_dto import ScheduleCreate, ScheduleUpdate, ScheduleResponse
 
@@ -38,6 +38,27 @@ class IScheduleService(ABC):
         
     @abstractmethod
     async def validate_subject_id(self, subject_id: int) -> Tuple[bool, Optional[str]]:
+        pass
+        
+    @abstractmethod
+    async def delete_all_schedules(self) -> int:
+        """Delete all schedules from the database
+        
+        Returns:
+            int: Number of deleted schedules
+        """
+        pass
+        
+    @abstractmethod
+    async def populate_schedules_from_subjects(self) -> Dict[str, Any]:
+        """Populate schedules table with preliminary entries based on subjects
+        
+        This creates initial schedule entries for each subject in the database,
+        allowing users to modify dates and times later
+        
+        Returns:
+            Dict[str, Any]: Statistics about the population process
+        """
         pass
         
     @abstractmethod

@@ -1,8 +1,11 @@
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any
 from datetime import date
+import logging
 
 from models.schedule import Schedule
 from models.DTOs.schedule_dto import ScheduleCreate, ScheduleUpdate, ScheduleResponse
+
+logger = logging.getLogger(__name__)
 from repositories.abstract.schedule_repository_interface import IScheduleRepository
 from repositories.abstract.subject_repository_interface import ISubjectRepository
 from repositories.abstract.user_repository_interface import IUserRepository
@@ -49,6 +52,40 @@ class ScheduleService(IScheduleService):
     async def get_schedules_by_status(self, status: str) -> List[ScheduleResponse]:
         schedules = await self.schedule_repository.get_by_status(status)
         return [ScheduleResponse.model_validate(schedule) for schedule in schedules]
+        
+    async def delete_all_schedules(self) -> int:
+        """Delete all schedules from the database
+        
+        Returns:
+            int: Number of deleted schedules
+        """
+        logger.info("[DEBUG] Service - delete_all_schedules: Starting execution")
+        try:
+            deleted_count = await self.schedule_repository.delete_all_schedules()
+            logger.info(f"[DEBUG] Service - Deleted {deleted_count} schedules")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"[DEBUG] Service - Error deleting schedules: {str(e)}")
+            raise
+    
+    async def populate_schedules_from_subjects(self) -> Dict[str, Any]:
+        """Populate schedules table with preliminary entries based on subjects
+        
+        This creates initial schedule entries for each subject in the database,
+        allowing users to modify dates and times later
+        
+        Returns:
+            Dict[str, Any]: Statistics about the population process
+        """
+        logger.info("[DEBUG] Service - populate_schedules_from_subjects: Starting execution")
+        try:
+            stats = await self.schedule_repository.populate_from_subjects()
+            logger.info(f"[DEBUG] Service - Populated schedules from subjects: "
+                        f"Created {stats['created']} schedules, {stats['errors']} errors")
+            return stats
+        except Exception as e:
+            logger.error(f"[DEBUG] Service - Error populating schedules: {str(e)}")
+            raise
         
     async def get_schedules_by_group_id(self, group_id: int) -> List[ScheduleResponse]:
         # Since we don't have a direct relationship to groups in the Schedule model,

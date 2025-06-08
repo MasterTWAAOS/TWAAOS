@@ -43,6 +43,16 @@ class IExcelTemplateService(ABC):
                             description: Optional[str] = None) -> ExcelTemplateResponse:
         """Create a new template with file upload"""
         pass
+        
+    @abstractmethod
+    async def create_template_from_bytes(self, 
+                          name: str,
+                          file_bytes: bytes,
+                          template_type: TemplateType,
+                          group_id: Optional[int] = None,
+                          description: Optional[str] = None) -> ExcelTemplateResponse:
+        """Create a new template from raw bytes data"""
+        pass
 
     @abstractmethod
     async def update_template(self, 

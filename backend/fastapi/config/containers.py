@@ -159,7 +159,8 @@ class Container(containers.DeclarativeContainer):
         group_service=group_service,
         room_service=room_service,
         user_service=user_service,
-        subject_service=subject_service
+        subject_service=subject_service,
+        schedule_service=schedule_service
     )
     
     config_service = providers.Factory(

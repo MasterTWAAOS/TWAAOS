@@ -10,6 +10,7 @@ from services.abstract.group_service_interface import IGroupService
 from services.abstract.room_service_interface import IRoomService
 from services.abstract.user_service_interface import IUserService
 from services.abstract.subject_service_interface import ISubjectService
+from services.abstract.schedule_service_interface import IScheduleService
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +24,14 @@ class SyncService(ISyncService):
         group_service: IGroupService,
         room_service: IRoomService,
         user_service: IUserService,
-        subject_service: ISubjectService
+        subject_service: ISubjectService,
+        schedule_service: IScheduleService
     ):
         self.group_service = group_service
         self.room_service = room_service
         self.user_service = user_service
         self.subject_service = subject_service
+        self.schedule_service = schedule_service
         
     async def delete_all_data(self) -> Dict[str, int]:
         """
@@ -252,6 +255,10 @@ class SyncService(ISyncService):
             "test_users": {
                 "count": 0,
                 "created": []
+            },
+            "schedules": {
+                "created": 0,
+                "errors": 0
             }
         }
         
@@ -288,6 +295,32 @@ class SyncService(ISyncService):
                 logger.warning(f"Main sync succeeded but test users creation failed: {str(test_user_error)}")
                 result["test_users"]["error"] = str(test_user_error)
             
+            # Step 4: Populate schedules table from subjects
+            try:
+                logger.info("Step 4: Populating schedules from subjects")
+                
+                # First delete any existing schedules
+                deleted_count = await self.schedule_service.delete_all_schedules()
+                logger.info(f"Deleted {deleted_count} existing schedules before populating")
+                
+                # Then populate with fresh data from subjects
+                schedule_stats = await self.schedule_service.populate_schedules_from_subjects()
+                
+                # Update result with schedule stats
+                result["schedules"]["created"] = schedule_stats.get("created", 0)
+                result["schedules"]["errors"] = schedule_stats.get("errors", 0)
+                
+                # Add details if there were errors
+                if schedule_stats.get("errors", 0) > 0:
+                    result["schedules"]["error_details"] = schedule_stats.get("error_details", [])
+                    
+                logger.info(f"Successfully created {schedule_stats.get('created', 0)} schedules from subjects")
+                
+            except Exception as schedule_error:
+                # If schedule creation fails, still return success for the main sync
+                logger.warning(f"Main sync succeeded but schedule population failed: {str(schedule_error)}")
+                result["schedules"]["error"] = str(schedule_error)
+                
             return result
         except Exception as e:
             logger.error(f"Error in sync process: {str(e)}")

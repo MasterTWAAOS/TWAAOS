@@ -8,6 +8,7 @@ class TemplateType(str, Enum):
     ROOM = "sali"  # Room schedule templates
     PROFESSOR = "cd"  # Professor schedule templates
     STUDENT = "sg"   # Student schedule templates
+    EXAM = "exam"   # Exam report templates
 
 class ExcelTemplateBase(BaseModel):
     name: str

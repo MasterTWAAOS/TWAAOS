@@ -71,6 +71,28 @@ class ExcelTemplateService(IExcelTemplateService):
         
         return ExcelTemplateResponse.model_validate(created_template)
 
+    async def create_template_from_bytes(self, 
+                             name: str,
+                             file_bytes: bytes,
+                             template_type: TemplateType,
+                             group_id: Optional[int] = None,
+                             description: Optional[str] = None) -> ExcelTemplateResponse:
+        """Create a new template from raw bytes data
+        
+        This method is specifically for internal generation of Excel files,
+        not for handling user uploads through the API.
+        """
+        # Create template with binary file content
+        created_template = await self.template_repository.create(
+            name=name,
+            file_content=file_bytes,
+            template_type=template_type,
+            group_id=group_id,
+            description=description
+        )
+        
+        return ExcelTemplateResponse.model_validate(created_template)
+
     async def update_template(self, 
                             template_id: int, 
                             name: Optional[str] = None,

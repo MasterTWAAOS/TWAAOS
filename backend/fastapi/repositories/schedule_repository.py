@@ -1,10 +1,15 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from typing import List, Optional
-from datetime import date
+from sqlalchemy import select, delete
+from typing import List, Optional, Dict, Any
+from datetime import date, datetime, time
+import logging
 
 from models.schedule import Schedule
+from models.subject import Subject
+from models.room import Room
 from repositories.abstract.schedule_repository_interface import IScheduleRepository
+
+logger = logging.getLogger(__name__)
 
 class ScheduleRepository(IScheduleRepository):
     def __init__(self, db: AsyncSession):
@@ -56,3 +61,121 @@ class ScheduleRepository(IScheduleRepository):
             await self.db.commit()
             return True
         return False
+    
+    async def delete_all_schedules(self) -> int:
+        """Delete all schedule records
+        
+        Returns:
+            int: Number of deleted records
+        """
+        logger.info("[DEBUG] Repository - delete_all_schedules: Starting execution")
+        try:
+            # Create a delete statement for all schedules
+            delete_stmt = delete(Schedule)
+            
+            # Execute the delete statement and get the result
+            result = await self.db.execute(delete_stmt)
+            
+            # Commit the transaction
+            await self.db.commit()
+            
+            # Return the number of rows deleted
+            deleted_count = result.rowcount
+            logger.info(f"[DEBUG] Repository - delete_all_schedules: Deleted {deleted_count} schedules")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"[DEBUG] Repository - delete_all_schedules error: {str(e)}")
+            raise
+    
+    async def populate_from_subjects(self) -> Dict[str, Any]:
+        """Populate schedules table with preliminary entries based on subjects
+        
+        This creates initial schedule entries for each subject in the database,
+        allowing users to modify dates and times later
+        
+        Returns:
+            Dict[str, Any]: Statistics about the population process
+        """
+        logger.info("[DEBUG] Repository - populate_from_subjects: Starting execution")
+        stats = {
+            "processed": 0,
+            "created": 0,
+            "errors": 0,
+            "error_details": []
+        }
+        
+        try:
+            # First, get all subjects joined with their groups and teachers
+            logger.info("[DEBUG] Repository - Querying all subjects")
+            query = select(Subject).order_by(Subject.id)
+            result = await self.db.execute(query)
+            subjects = result.scalars().all()
+            
+            logger.info(f"[DEBUG] Repository - Found {len(subjects)} subjects to process")
+            
+            if not subjects:
+                logger.warning("[DEBUG] Repository - No subjects found to create schedules from")
+                return stats
+            
+            # Get the first available room to use as default if needed
+            room_query = select(Room).limit(1)
+            room_result = await self.db.execute(room_query)
+            default_room = room_result.scalar_one_or_none()
+            
+            if not default_room:
+                logger.error("[DEBUG] Repository - No rooms available in the database")
+                stats["error_details"].append("No rooms available in the database")
+                return stats
+            
+            # Today's date to use as default
+            today = datetime.now().date()
+            
+            # Default times (9:00 - 11:00)
+            default_start_time = time(9, 0)
+            default_end_time = time(11, 0)
+            
+            # Default status
+            default_status = "propus"
+            
+            # Process each subject
+            for subject in subjects:
+                try:
+                    stats["processed"] += 1
+                    
+                    # Create a new schedule for this subject
+                    new_schedule = Schedule(
+                        subjectId=subject.id,
+                        roomId=default_room.id,
+                        date=today,
+                        startTime=default_start_time,
+                        endTime=default_end_time,
+                        status=default_status
+                    )
+                    
+                    # Add to database
+                    self.db.add(new_schedule)
+                    await self.db.flush()
+                    
+                    stats["created"] += 1
+                    
+                    # Log progress every 50 subjects
+                    if stats["processed"] % 50 == 0:
+                        logger.info(f"[DEBUG] Repository - Processed {stats['processed']}/{len(subjects)} subjects")
+                        
+                except Exception as subject_error:
+                    stats["errors"] += 1
+                    error_msg = f"Error creating schedule for subject ID {subject.id}: {str(subject_error)}"
+                    stats["error_details"].append(error_msg)
+                    logger.error(f"[DEBUG] Repository - {error_msg}")
+            
+            # Commit all changes at once
+            await self.db.commit()
+            
+            logger.info(f"[DEBUG] Repository - populate_from_subjects completed: "
+                      f"{stats['created']} schedules created, {stats['errors']} errors")
+            
+            return stats
+            
+        except Exception as e:
+            logger.error(f"[DEBUG] Repository - populate_from_subjects error: {str(e)}")
+            raise

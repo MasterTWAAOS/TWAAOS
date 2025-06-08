@@ -279,6 +279,7 @@ async def generate_exam_excel(
     service: IExcelTemplateService = Depends(Provide[Container.excel_template_service])
 ):
     """Generate an Excel file with exam information grouped by program, year, and group.
+    The Excel file is both saved to the database and returned as a downloadable response.
     
     Returns:
         StreamingResponse: The Excel file as a downloadable response
@@ -325,12 +326,28 @@ async def generate_exam_excel(
                 column_width = max(grouped_df[col].astype(str).map(len).max(), len(col)) + 2
                 worksheet.set_column(i, i, column_width)
         
+        # Get the Excel file as bytes from the BytesIO object
         output.seek(0)
+        excel_bytes = output.getvalue()
         
         # Create filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"lista_examene_{timestamp}.xlsx"
         print(f"[DEBUG] Controller - Generated filename: {filename}")
+        
+        # Save the Excel file to the database
+        print("[DEBUG] Controller - Saving Excel file to database")
+        from models.DTOs.excel_template_dto import TemplateType
+        await service.create_template_from_bytes(
+            name=filename,
+            file_bytes=excel_bytes,
+            template_type=TemplateType.EXAM,
+            description="Generated exam list with teacher details"
+        )
+        print("[DEBUG] Controller - Excel file saved to database successfully")
+        
+        # Reset the BytesIO cursor position to beginning for streaming
+        output.seek(0)
         
         # Return the Excel file as a streaming response
         print("[DEBUG] Controller - Returning StreamingResponse with Excel file")
