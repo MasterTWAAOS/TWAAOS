@@ -10,6 +10,7 @@ from repositories.schedule_repository import ScheduleRepository
 from repositories.notification_repository import NotificationRepository
 from repositories.excel_template_repository import ExcelTemplateRepository
 from repositories.config_repository import ConfigRepository
+from repositories.exam_repository import ExamRepository
 
 # Repository interface imports
 from repositories.abstract.user_repository_interface import IUserRepository
@@ -20,6 +21,7 @@ from repositories.abstract.schedule_repository_interface import IScheduleReposit
 from repositories.abstract.notification_repository_interface import INotificationRepository
 from repositories.abstract.excel_template_repository_interface import IExcelTemplateRepository
 from repositories.abstract.config_repository_interface import IConfigRepository
+from repositories.abstract.exam_repository_interface import IExamRepository
 
 # Service imports
 from services.user_service import UserService
@@ -33,6 +35,7 @@ from services.auth_service import AuthService
 from services.sync_service import SyncService
 from services.config_service import ConfigService
 from services.excel_service import ExcelService
+from services.exam_service import ExamService
 
 # Service interface imports
 from services.abstract.user_service_interface import IUserService
@@ -46,6 +49,7 @@ from services.abstract.auth_service_interface import IAuthService
 from services.abstract.sync_service_interface import ISyncService
 from services.abstract.config_service_interface import IConfigService
 from services.abstract.excel_service_interface import IExcelService
+from services.abstract.exam_service_interface import IExamService
 
 from config.database_provider import get_db_session
 
@@ -101,6 +105,11 @@ class Container(containers.DeclarativeContainer):
     
     config_repository = providers.Singleton(
         ConfigRepository,
+        db=db
+    )
+
+    exam_repository = providers.Singleton(
+        ExamRepository,
         db=db
     )
     
@@ -172,4 +181,9 @@ class Container(containers.DeclarativeContainer):
         ExcelService,
         user_service=user_service,
         group_service=group_service
+    )
+    
+    exam_service = providers.Factory(
+        ExamService,
+        exam_repository=exam_repository
     )

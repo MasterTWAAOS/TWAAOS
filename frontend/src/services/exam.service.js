@@ -2,11 +2,12 @@ import apiClient from './api.service'
 
 class ExamService {
   /**
-   * Get all exams
-   * @returns {Promise} API Response
+   * Get all exams with detailed information
+   * @returns {Promise<Array>} Promise that resolves to an array of exam objects
    */
-  getAll() {
-    return apiClient.get('/exams')
+  async getAllExams() {
+    const response = await apiClient.get('/exams')
+    return response.data
   }
 
   /**

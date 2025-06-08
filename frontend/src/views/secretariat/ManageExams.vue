@@ -185,9 +185,33 @@
                 </template>
               </Column>
               
-              <Column field="room" header="Sala" :sortable="true">
+              <Column field="room.name" header="Sala" :sortable="true">
                 <template #body="slotProps">
                   {{ slotProps.data.room.name }}
+                </template>
+              </Column>
+              
+              <Column field="professor.name" header="Profesor" :sortable="true">
+                <template #body="slotProps">
+                  {{ slotProps.data.professor.name }}
+                </template>
+                <template #filter="{ filterModel, filterCallback }">
+                  <InputText v-model="filterModel.value" @input="filterCallback()" placeholder="Căutare..." class="p-column-filter" />
+                </template>
+              </Column>
+              
+              <Column field="studyProgram" header="Program studiu" :sortable="true">
+                <template #body="slotProps">
+                  {{ slotProps.data.studyProgram }}
+                </template>
+                <template #filter="{ filterModel, filterCallback }">
+                  <InputText v-model="filterModel.value" @input="filterCallback()" placeholder="Căutare..." class="p-column-filter" />
+                </template>
+              </Column>
+              
+              <Column field="studyYear" header="An" :sortable="true">
+                <template #body="slotProps">
+                  {{ slotProps.data.studyYear }}
                 </template>
               </Column>
               
@@ -768,56 +792,80 @@ export default {
       }
     }
     
-    // Load exams
+    // Load exams from the backend API
     const loadExams = async () => {
       try {
         loading.value = true
         
-        // In a real implementation, call the API
-        // const response = await examService.getExams()
-        // exams.value = response.data
+        // Call the API to get real exam data from the backend
+        const response = await examService.getAllExams()
         
-        // For demo purposes, use mock data
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        exams.value = [
-          {
-            id: 1,
-            subject: subjectOptions.value[0],
-            groups: [groupOptions.value[0], groupOptions.value[1]],
-            date: new Date(2025, 5, 10),
-            startTime: '10:00',
-            duration: 2,
-            room: roomOptions.value[0],
-            professor: professorOptions.value[0],
-            notes: 'Examen scris + aplicație practică',
-            status: 'SCHEDULED'
-          },
-          {
-            id: 2,
-            subject: subjectOptions.value[1],
-            groups: [groupOptions.value[2], groupOptions.value[3]],
-            date: new Date(2025, 5, 12),
-            startTime: '09:00',
-            duration: 3,
-            room: roomOptions.value[1],
-            professor: professorOptions.value[1],
-            notes: 'Examen scris',
-            status: 'SCHEDULED'
-          },
-          {
-            id: 3,
-            subject: subjectOptions.value[2],
-            groups: [groupOptions.value[4], groupOptions.value[5]],
-            date: new Date(2025, 5, 15),
-            startTime: '14:00',
-            duration: 2,
-            room: roomOptions.value[2],
-            professor: professorOptions.value[2],
-            notes: '',
-            status: 'PENDING'
+        // Process the data to match our component's expected structure
+        exams.value = response.map(exam => {
+          // Find matching subject object or create one
+          let subject = subjectOptions.value.find(s => s.id === exam.subjectId) || {
+            id: exam.subjectId,
+            name: exam.subjectName,
+            shortName: exam.subjectShortName || exam.subjectName.substring(0, 3)
           }
-        ]
+          
+          // Find matching room object or create one
+          let room = roomOptions.value.find(r => r.id === exam.roomId) || {
+            id: exam.roomId,
+            name: exam.roomName
+          }
+          
+          // Create professor object from the data
+          let professor = professorOptions.value.find(p => p.id === exam.teacherId) || {
+            id: exam.teacherId,
+            name: exam.teacherName,
+            email: exam.teacherEmail || '',
+            phone: exam.teacherPhone || 'N/A'
+          }
+          
+          // For groups, we'll need to find the corresponding group in groupOptions
+          // In a real scenario, we'd have a separate API call to get all groups for this exam
+          // For now, we'll use the groupId and groupName from the exam data
+          let group = groupOptions.value.find(g => g.id === exam.groupId) || {
+            id: exam.groupId,
+            name: exam.groupName,
+            studyProgram: exam.specializationShortName || '',
+            studyYear: exam.studyYear || 1
+          }
+          
+          // Parse date string to Date object if needed
+          let examDate = typeof exam.date === 'string' ? new Date(exam.date) : exam.date
+          
+          // Format start time
+          let startTime = typeof exam.startTime === 'string' ? 
+            exam.startTime : 
+            `${exam.startTime.hour.toString().padStart(2, '0')}:${exam.startTime.minute.toString().padStart(2, '0')}`
+          
+          return {
+            id: exam.id,
+            subject: subject,
+            // For simplicity, we're currently showing only the primary group
+            // In a full implementation, you'd fetch all groups for this exam
+            groups: [group],
+            date: examDate,
+            startTime: startTime,
+            duration: exam.duration,
+            room: room,
+            professor: professor,
+            notes: exam.notes || '',
+            status: exam.status || 'SCHEDULED',
+            // Additional fields from Excel export
+            studyProgram: exam.specializationShortName,
+            studyYear: exam.studyYear
+          }
+        })
+        
+        store.dispatch('notifications/showNotification', {
+          severity: 'success',
+          summary: 'Examene încărcate',
+          detail: `${exams.value.length} examene au fost încărcate cu succes`,
+          life: 3000
+        })
       } catch (error) {
         console.error('Error loading exams:', error)
         
