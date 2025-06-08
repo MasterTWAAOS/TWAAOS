@@ -366,3 +366,106 @@ async def generate_exam_excel(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generating Excel file: {str(e)}"
         )
+
+@router.get("/rooms/generate-excel", summary="Generate Excel with Room Information", description="Generate an Excel file with room information sorted by building and room name")
+@inject
+async def generate_room_excel(
+    service: IExcelTemplateService = Depends(Provide[Container.excel_template_service])
+):
+    """Generate an Excel file with room information sorted by building and room name.
+    The Excel file is both saved to the database and returned as a downloadable response.
+    
+    Returns:
+        StreamingResponse: The Excel file as a downloadable response
+        
+    Raises:
+        HTTPException: If there's an error generating the Excel file
+    """
+    print("[DEBUG] RoomController - generate_room_excel: Request received")
+    try:
+        # Get room data from database
+        print("[DEBUG] RoomController - Calling service.get_room_data()")
+        rooms = await service.get_room_data()
+        
+        if not rooms:
+            print("[DEBUG] RoomController - No rooms returned from service")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No room data available"
+            )
+        
+        print(f"[DEBUG] RoomController - Received {len(rooms)} items from service")
+        print(f"[DEBUG] RoomController - Sample columns: {list(rooms[0].keys()) if rooms else 'None'}")
+        
+        # Create a pandas DataFrame from the room data
+        print("[DEBUG] RoomController - Creating pandas DataFrame")
+        df = pd.DataFrame(rooms)
+        print(f"[DEBUG] RoomController - DataFrame shape: {df.shape}")
+        
+        # Create better column headers for Excel file
+        column_map = {
+            'buildingName': 'Clădire', 
+            'name': 'Nume Sală',
+            'shortName': 'Abreviere',
+            'capacity': 'Capacitate',
+            'computers': 'Calculatoare'
+        }
+        df = df.rename(columns=column_map)
+        
+        # Sort the data by building name and room name
+        print("[DEBUG] RoomController - Sorting DataFrame by building and room name")
+        sorted_df = df.sort_values(by=['Clădire', 'Nume Sală'])
+        
+        # Create Excel file in memory
+        print("[DEBUG] RoomController - Creating Excel file in memory")
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            sorted_df.to_excel(writer, sheet_name='Săli', index=False)
+            
+            # Auto-adjust columns width
+            print("[DEBUG] RoomController - Auto-adjusting column widths")
+            worksheet = writer.sheets['Săli']
+            for i, col in enumerate(sorted_df.columns):
+                column_width = max(sorted_df[col].astype(str).map(len).max(), len(col)) + 2
+                worksheet.set_column(i, i, column_width)
+        
+        # Get the Excel file as bytes from the BytesIO object
+        output.seek(0)
+        excel_bytes = output.getvalue()
+        
+        # Create filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"lista_sali_{timestamp}.xlsx"
+        print(f"[DEBUG] RoomController - Generated filename: {filename}")
+        
+        # Save the Excel file to the database
+        print("[DEBUG] RoomController - Saving Excel file to database")
+        from models.DTOs.excel_template_dto import TemplateType
+        await service.create_template_from_bytes(
+            name=filename,
+            file_bytes=excel_bytes,
+            template_type=TemplateType.ROOM,
+            description="Generated room list"
+        )
+        print("[DEBUG] RoomController - Excel file saved to database successfully")
+        
+        # Reset the BytesIO cursor position to beginning for streaming
+        output.seek(0)
+        
+        # Return the Excel file as a streaming response
+        print("[DEBUG] RoomController - Returning StreamingResponse with Excel file")
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+    except Exception as e:
+        print(f"[DEBUG] RoomController - Error: {str(e)}")
+        import traceback
+        print(f"[DEBUG] RoomController - Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating Excel file: {str(e)}"
+        )

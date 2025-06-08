@@ -9,8 +9,8 @@
             <div class="p-d-flex p-jc-between p-ai-center p-mb-3">
               <h2>Lista examene programate</h2>
               <Button 
-                label="Actualizare" 
-                icon="pi pi-refresh" 
+                label="Export Excel" 
+                icon="pi pi-file-excel" 
                 class="p-button-primary" 
                 @click="generateExamExcel"
                 :loading="generatingExcel"
@@ -128,8 +128,8 @@
               <div class="p-d-flex p-jc-between p-ai-center p-mb-3">
                 <h2>Lista săli disponibile</h2>
                 <Button 
-                  label="Actualizare" 
-                  icon="pi pi-refresh" 
+                  label="Export Excel" 
+                  icon="pi pi-file-excel" 
                   class="p-button-primary" 
                   @click="generateRoomExcel"
                   :loading="generatingRoomExcel"

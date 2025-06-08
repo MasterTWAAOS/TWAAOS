@@ -78,3 +78,12 @@ class IExcelTemplateService(ABC):
             list: A list of dictionaries containing subject and teacher data grouped by program, year, and group
         """
         pass
+        
+    @abstractmethod
+    async def get_room_data(self):
+        """Fetch room data for room Excel report
+        
+        Returns:
+            list: A list of dictionaries containing room data sorted by building and room name
+        """
+        pass

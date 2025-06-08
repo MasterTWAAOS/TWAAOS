@@ -186,3 +186,45 @@ class ExcelTemplateService(IExcelTemplateService):
             print(f"[DEBUG] Service - Sample item: {formatted_data[0]}")
         
         return formatted_data
+        
+    async def get_room_data(self):
+        """Fetch room data for room Excel report
+        
+        Returns:
+            list: A list of dictionaries containing room data sorted by building and room name
+        """
+        print("[DEBUG] Service - get_room_data: Starting execution")
+        
+        # Use the repository to fetch data from the database
+        print("[DEBUG] Service - Calling repository.get_room_data()")
+        query_result = await self.template_repository.get_room_data()
+        
+        if not query_result:
+            print("[DEBUG] Service - No data returned from repository")
+            return []
+        
+        print(f"[DEBUG] Service - Repository returned {len(query_result)} items")
+        
+        # Format the data for the Excel report
+        print("[DEBUG] Service - Formatting data for Excel report")
+        formatted_data = []
+        for i, room in enumerate(query_result):
+            try:
+                formatted_item = {
+                    'buildingName': room.buildingName,
+                    'name': room.name,
+                    'shortName': room.shortName,
+                    'capacity': room.capacity,
+                    'computers': 'Da' if room.computers else 'Nu'
+                }
+                formatted_data.append(formatted_item)
+            except Exception as e:
+                print(f"[DEBUG] Service - Error formatting item {i}: {str(e)}")
+                print(f"[DEBUG] Service - Item details: id={room.id}, name={room.name if hasattr(room, 'name') else 'unknown'}")
+                # Continue with next item
+        
+        print(f"[DEBUG] Service - Formatted {len(formatted_data)} items for Excel")
+        if formatted_data:
+            print(f"[DEBUG] Service - Sample item: {formatted_data[0]}")
+        
+        return formatted_data

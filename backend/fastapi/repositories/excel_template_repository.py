@@ -168,3 +168,39 @@ class ExcelTemplateRepository(IExcelTemplateRepository):
             print(f"[DEBUG] Repository - Error sorting subjects: {str(e)}")
             # Return unsorted subjects if sorting fails
             return subjects
+            
+    async def get_room_data(self):
+        """Get room data for Excel export
+        
+        Returns:
+            List: List of rooms with their details
+        """
+        print("[DEBUG] Repository - get_room_data: Starting execution")
+        
+        from sqlalchemy import select
+        from models.room import Room
+        
+        # Create query to select all rooms
+        print("[DEBUG] Repository - Building query for rooms")
+        query = select(Room)
+        
+        # Execute the query
+        print("[DEBUG] Repository - Executing database query")
+        result = await self.db.execute(query)
+        rooms = result.scalars().all()
+        
+        # Log query results
+        print(f"[DEBUG] Repository - Query returned {len(rooms)} rooms")
+        
+        # Sort the rooms by building name and room name using Python
+        try:
+            sorted_rooms = sorted(
+                rooms,
+                key=lambda x: (x.buildingName or '', x.name or '')
+            )
+            print(f"[DEBUG] Repository - Successfully sorted {len(sorted_rooms)} rooms")
+            return sorted_rooms
+        except Exception as e:
+            print(f"[DEBUG] Repository - Error sorting rooms: {str(e)}")
+            # Return unsorted rooms if sorting fails
+            return rooms

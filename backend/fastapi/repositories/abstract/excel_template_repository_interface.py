@@ -68,3 +68,12 @@ class IExcelTemplateRepository(ABC):
             List: List of subjects with associated teacher and group data
         """
         pass
+        
+    @abstractmethod
+    async def get_room_data(self):
+        """Get room data for Excel export
+        
+        Returns:
+            List: List of rooms with their details
+        """
+        pass
