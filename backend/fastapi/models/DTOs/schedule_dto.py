@@ -15,11 +15,18 @@ class ScheduleCreate(ScheduleBase):
 
 class ScheduleUpdate(BaseModel):
     subjectId: Optional[int] = None
-    roomId: Optional[int] = None
+    roomId: Optional[int] = None  # Primary room (kept for backward compatibility)
     date: Optional[date] = None
     startTime: Optional[time] = None
     endTime: Optional[time] = None
     status: Optional[str] = None
+    reason: Optional[str] = None  # Reason for rejection
+    comments: Optional[str] = None  # Additional comments
+    
+    # New fields for CD functionality
+    additionalRoomIds: Optional[list[int]] = None  # Additional rooms for the exam
+    assistantIds: Optional[list[int]] = None  # Assistants assigned to the exam
+    sendEmail: Optional[bool] = None  # Flag to trigger email notifications
     
     # Use proper Pydantic V2 config
     model_config = {
@@ -29,10 +36,14 @@ class ScheduleUpdate(BaseModel):
             "example": {
                 "subjectId": 986,
                 "roomId": 1182,
+                "additionalRoomIds": [1183, 1184],
+                "assistantIds": [2001, 2002],
                 "date": "2025-07-10",
                 "startTime": "09:00:00",
                 "endTime": "11:00:00",
-                "status": "proposed"
+                "status": "approved",
+                "comments": "Exam approved with multiple rooms",
+                "sendEmail": True
             }
         }
     }

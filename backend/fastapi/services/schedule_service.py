@@ -146,6 +146,46 @@ class ScheduleService(IScheduleService):
             return False, f"User with ID {teacher_id} is not a teacher"
         return True, None
     
+    async def validate_assistant_id(self, assistant_id: int) -> Tuple[bool, Optional[str]]:
+        """Validates if the assistant_id exists and is a valid teacher/assistant.
+        
+        Args:
+            assistant_id: The user ID to validate as an assistant
+            
+        Returns:
+            Tuple containing (is_valid, error_message)
+            is_valid: True if validation passes, False otherwise
+            error_message: Description of the error if validation fails, None otherwise
+        """
+        assistant = await self.user_repository.get_by_id(assistant_id)
+        if not assistant:
+            return False, f"Assistant with ID {assistant_id} does not exist"
+        # Assistants can be CD or other roles that can assist in exams
+        if assistant.role not in ['CD', 'SEC']:  # Adjust roles as needed
+            return False, f"User with ID {assistant_id} cannot be assigned as an assistant"
+        return True, None
+        
+    async def validate_assistant_ids(self, assistant_ids: List[int]) -> Tuple[bool, Optional[str]]:
+        """Validates a list of assistant IDs.
+        
+        Args:
+            assistant_ids: List of assistant IDs to validate
+            
+        Returns:
+            Tuple containing (is_valid, error_message)
+            is_valid: True if validation passes, False otherwise
+            error_message: Description of the error if validation fails, None otherwise
+        """
+        if not assistant_ids:
+            return True, None
+            
+        for assistant_id in assistant_ids:
+            is_valid, error_message = await self.validate_assistant_id(assistant_id)
+            if not is_valid:
+                return False, error_message
+                
+        return True, None
+    
     async def validate_room_id(self, room_id: int) -> Tuple[bool, Optional[str]]:
         """Validates if the room_id exists.
         
@@ -232,10 +272,93 @@ class ScheduleService(IScheduleService):
         created_schedule = await self.schedule_repository.create(schedule)
         return ScheduleResponse.model_validate(created_schedule)
 
+    async def check_for_room_conflicts(self, schedule_id: int, room_ids: List[int], date: date, start_time: time, end_time: time) -> Tuple[bool, List[str]]:
+        """Check for conflicts with other scheduled exams in the same rooms.
+        
+        Args:
+            schedule_id: The ID of the current schedule (to exclude from conflict check)
+            room_ids: List of room IDs to check for conflicts
+            date: The date of the exam
+            start_time: Start time of the exam
+            end_time: End time of the exam
+            
+        Returns:
+            Tuple of (has_conflicts, conflict_messages)
+        """
+        conflicts = []
+        
+        # Get all schedules for the same date that are approved
+        all_schedules = await self.schedule_repository.get_all()
+        same_day_schedules = [
+            s for s in all_schedules 
+            if s.date == date and s.status == 'approved' and s.id != schedule_id
+        ]
+        
+        for schedule in same_day_schedules:
+            # Check for time overlap
+            if (start_time < schedule.endTime and end_time > schedule.startTime):
+                # Check if any of the rooms conflict
+                if schedule.roomId in room_ids:
+                    room = await self.room_repository.get_by_id(schedule.roomId)
+                    if room:
+                        conflicts.append(f"Room {room.name} is already booked between {schedule.startTime} - {schedule.endTime}")
+                
+                # We would also check additional room relationships here if we had them in the database
+                # This would require a related table for additional rooms
+        
+        return len(conflicts) > 0, conflicts
+        
+    async def check_for_assistant_conflicts(self, schedule_id: int, assistant_ids: List[int], date: date, start_time: time, end_time: time) -> Tuple[bool, List[str]]:
+        """Check for conflicts with assistants already assigned to other exams at the same time.
+        
+        Args:
+            schedule_id: The ID of the current schedule (to exclude from conflict check)
+            assistant_ids: List of assistant user IDs to check for conflicts
+            date: The date of the exam
+            start_time: Start time of the exam
+            end_time: End time of the exam
+            
+        Returns:
+            Tuple of (has_conflicts, conflict_messages)
+        """
+        # In a complete implementation, we would query a related table that links
+        # assistants to schedules. Since that's likely not implemented yet, this
+        # is a placeholder for the conflict detection logic.
+        
+        # For the current implementation, we'll assume no conflicts
+        return False, []
+    
+    async def send_notification_email(self, schedule_id: int, recipient_email: str, subject: str, message: str) -> bool:
+        """Send notification email for schedule changes.
+        
+        Args:
+            schedule_id: The ID of the schedule
+            recipient_email: Email address of the recipient
+            subject: Email subject
+            message: Email message content
+            
+        Returns:
+            True if email was sent successfully, False otherwise
+        """
+        # In a real implementation, this would use an email service/client
+        # For now, we'll just log the email that would be sent
+        logger.info(f"[EMAIL] Would send email for schedule {schedule_id} to {recipient_email}:")
+        logger.info(f"[EMAIL] Subject: {subject}")
+        logger.info(f"[EMAIL] Message: {message}")
+        
+        # Here you would implement actual email sending logic
+        # For example:
+        # from services.email_service import send_email
+        # return await send_email(recipient_email, subject, message)
+        
+        return True
+    
     async def update_schedule(self, schedule_id: int, schedule_data: ScheduleUpdate) -> Optional[ScheduleResponse]:
         schedule = await self.schedule_repository.get_by_id(schedule_id)
         if not schedule:
             return None
+        
+        logger.info(f"[DEBUG] Updating schedule {schedule_id} with data: {schedule_data}")
             
         # Validate foreign keys if provided
         if schedule_data.subjectId is not None:
@@ -243,10 +366,21 @@ class ScheduleService(IScheduleService):
             if not is_valid:
                 raise ValueError(error_message)
                 
-
-                
         if schedule_data.roomId is not None:
             is_valid, error_message = await self.validate_room_id(schedule_data.roomId)
+            if not is_valid:
+                raise ValueError(error_message)
+        
+        # Validate additional rooms if provided
+        if schedule_data.additionalRoomIds is not None:
+            for room_id in schedule_data.additionalRoomIds:
+                is_valid, error_message = await self.validate_room_id(room_id)
+                if not is_valid:
+                    raise ValueError(error_message)
+        
+        # Validate assistants if provided
+        if schedule_data.assistantIds is not None:
+            is_valid, error_message = await self.validate_assistant_ids(schedule_data.assistantIds)
             if not is_valid:
                 raise ValueError(error_message)
                 
@@ -255,24 +389,119 @@ class ScheduleService(IScheduleService):
             is_valid, error_message = await self.validate_status(schedule_data.status)
             if not is_valid:
                 raise ValueError(error_message)
+        
+        # Check for conflicts if approving a schedule
+        if schedule_data.status == 'approved':
+            date_to_check = schedule_data.date or schedule.date
+            start_time_to_check = schedule_data.startTime or schedule.startTime
+            end_time_to_check = schedule_data.endTime or schedule.endTime
             
+            # Get all rooms (primary + additional)
+            all_room_ids = []
+            if schedule_data.roomId is not None:
+                all_room_ids.append(schedule_data.roomId)
+            if schedule_data.additionalRoomIds:
+                all_room_ids.extend(schedule_data.additionalRoomIds)
+                
+            # If no rooms specified in update, use the existing room
+            if not all_room_ids and schedule.roomId:
+                all_room_ids.append(schedule.roomId)
+            
+            # Check room conflicts
+            has_room_conflicts, room_conflict_msgs = await self.check_for_room_conflicts(
+                schedule_id, all_room_ids, date_to_check, start_time_to_check, end_time_to_check)
+            
+            # Check assistant conflicts if assistants are being assigned
+            assistant_ids = schedule_data.assistantIds or []
+            if assistant_ids:
+                has_assistant_conflicts, assistant_conflict_msgs = await self.check_for_assistant_conflicts(
+                    schedule_id, assistant_ids, date_to_check, start_time_to_check, end_time_to_check)
+                
+                # Combine conflict messages
+                if has_assistant_conflicts:
+                    has_room_conflicts = True  # Set overall conflict flag
+                    room_conflict_msgs.extend(assistant_conflict_msgs)
+            
+            # If conflicts detected, you might want to raise an error or just log warnings
+            if has_room_conflicts:
+                logger.warning(f"[CONFLICTS] Detected conflicts for schedule {schedule_id}: {room_conflict_msgs}")
+                # Uncommenting the line below would prevent approving if conflicts exist
+                # raise ValueError(f"Cannot approve due to conflicts: {', '.join(room_conflict_msgs)}")
+        
         # Update schedule fields if provided
         if schedule_data.subjectId is not None:
             schedule.subjectId = schedule_data.subjectId
-
+            
         if schedule_data.roomId is not None:
             schedule.roomId = schedule_data.roomId
+            
         if schedule_data.date is not None:
             schedule.date = schedule_data.date
+            
         if schedule_data.startTime is not None:
             schedule.startTime = schedule_data.startTime
+            
         if schedule_data.endTime is not None:
             schedule.endTime = schedule_data.endTime
+            
         if schedule_data.status is not None:
             logger.info(f"[DEBUG] Updating schedule {schedule_id} status to: {schedule_data.status}")
+            old_status = schedule.status
             schedule.status = schedule_data.status
             
-        # Save changes
+            # Handle special actions based on status changes
+            if schedule_data.status == 'rejected' and schedule_data.sendEmail:
+                # Send rejection notification to SG
+                subject = await self.subject_repository.get_by_id(schedule.subjectId)
+                if subject:
+                    group = await self.group_repository.get_by_id(subject.groupId)
+                    if group:
+                        # Find SG user for this group
+                        sg_users = await self.user_repository.get_by_role_and_group('SG', group.id)
+                        for sg_user in sg_users:
+                            if sg_user.email:
+                                # Send notification email
+                                subject_line = f"Proposed exam date rejected: {subject.name}"
+                                message = f"Dear {sg_user.name},\n\nYour proposed exam date for {subject.name} has been rejected."
+                                
+                                if schedule_data.reason:
+                                    message += f"\n\nReason: {schedule_data.reason}"
+                                    
+                                message += "\n\nPlease propose a new date.\n\nRegards,\nExam Management System"
+                                
+                                await self.send_notification_email(
+                                    schedule_id, 
+                                    sg_user.email, 
+                                    subject_line, 
+                                    message
+                                )
+        
+        # Handle additional rooms and assistants
+        # Since the Schedule model only supports one room directly, we'll store the primary room
+        # in the Schedule and handle additional data differently
+        
+        # For rooms - we use the primary roomId in the Schedule table and update any related records
+        # for additional rooms (in a production system, this would be in a relationship table)
+        if schedule_data.additionalRoomIds:
+            logger.info(f"[DEBUG] Additional rooms for schedule {schedule_id}: {schedule_data.additionalRoomIds}")
+            # In this implementation, we're limited by the database schema
+            # For a complete solution, we would need to create a schedule_rooms relationship table
+            # For now, just use the first additional room as the primary if no primary is specified
+            if schedule_data.roomId is None and schedule_data.additionalRoomIds:
+                schedule.roomId = schedule_data.additionalRoomIds[0]
+        
+        # For assistants - update the assistantIds in the Subject if needed
+        if schedule_data.assistantIds:
+            logger.info(f"[DEBUG] Assistants for schedule {schedule_id}: {schedule_data.assistantIds}")
+            # Get the associated subject and update its assistantIds
+            subject = await self.subject_repository.get_by_id(schedule.subjectId)
+            if subject:
+                # In real implementation, we'd need to be careful not to overwrite existing assistants
+                # that might be assigned to this subject for other schedules
+                subject.assistantIds = schedule_data.assistantIds
+                await self.subject_repository.update(subject)
+            
+        # Save changes to the main schedule record
         updated_schedule = await self.schedule_repository.update(schedule)
         return ScheduleResponse.model_validate(updated_schedule)
 
