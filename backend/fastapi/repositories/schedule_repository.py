@@ -135,7 +135,7 @@ class ScheduleRepository(IScheduleRepository):
             default_end_time = time(11, 0)
             
             # Default status
-            default_status = "propus"
+            default_status = "proposed"
             
             # Process each subject
             for subject in subjects:

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Path, Body
 from dependency_injector.wiring import inject, Provide
 from typing import List, Dict, Any
 
-from models.DTOs.exam_dto import ExamResponse, ExamUpdateRequest
+from models.DTOs.exam_dto import ExamResponse, ExamUpdateRequest, ExamProposalRequest
 from services.abstract.exam_service_interface import IExamService
 from config.containers import Container
 
@@ -152,4 +152,50 @@ async def update_exam(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating exam: {str(e)}"
+        )
+
+@router.post("/propose", response_model=ExamResponse, status_code=status.HTTP_201_CREATED, summary="Propose exam date", description="Student Group Leaders (SG) propose exam dates for their group")
+@inject
+async def propose_exam_date(
+    proposal: ExamProposalRequest = Body(..., description="Exam proposal details"),
+    service: IExamService = Depends(Provide[Container.exam_service])
+):
+    """Propose a new exam date for a subject.
+    
+    This endpoint allows Student Group Leaders (SG) to propose exam dates for their group.
+    The proposal is initially created with 'pending' status and awaits teacher approval.
+    
+    Args:
+        proposal (ExamProposalRequest): The exam proposal data
+        
+    Returns:
+        ExamResponse: The created exam proposal with details
+        
+    Raises:
+        HTTPException: If there's an error processing the proposal
+    """
+    print(f"[DEBUG] ExamController - propose_exam_date for subject {proposal.subjectId} and group {proposal.groupId}")
+    
+    try:
+        # Convert the proposal to a dict and set correct proposal status
+        proposal_dict = proposal.dict()
+        proposal_dict["status"] = "proposed"
+        
+        # Create the exam proposal
+        exam = await service.create_exam_proposal(proposal_dict)
+        
+        print(f"[DEBUG] ExamController - Successfully created exam proposal for subject {proposal.subjectId}")
+        return exam
+        
+    except ValueError as e:
+        print(f"[DEBUG] ExamController - Value error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        print(f"[DEBUG] ExamController - Error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating exam proposal: {str(e)}"
         )

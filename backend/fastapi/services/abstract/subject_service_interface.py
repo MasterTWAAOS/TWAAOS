@@ -55,3 +55,27 @@ class ISubjectService(ABC):
             int: Number of subjects deleted
         """
         pass
+        
+    @abstractmethod
+    async def get_subject_with_teacher(self, subject_id: int):
+        """Get a subject with its teacher relationship fully loaded.
+        
+        Args:
+            subject_id: ID of the subject to retrieve
+            
+        Returns:
+            The subject model with teacher relationship loaded, or None if not found
+        """
+        pass
+        
+    @abstractmethod
+    async def get_group_by_id(self, group_id: int):
+        """Get a group by its ID.
+        
+        Args:
+            group_id: ID of the group to retrieve
+            
+        Returns:
+            The group model or None if not found
+        """
+        pass

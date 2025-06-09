@@ -62,3 +62,15 @@ class IExamService(ABC):
             ExamResponse: Updated exam data response
         """
         pass
+        
+    @abstractmethod
+    async def create_exam_proposal(self, proposal_data: Dict[str, Any]) -> ExamResponse:
+        """Create a new exam proposal from a student group
+        
+        Args:
+            proposal_data (Dict[str, Any]): Proposal data including subject ID, date, time, group ID
+            
+        Returns:
+            ExamResponse: Created exam proposal with details
+        """
+        pass

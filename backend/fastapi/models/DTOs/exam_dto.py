@@ -1,5 +1,5 @@
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import date, time
 
 class ExamResponse(BaseModel):
@@ -26,8 +26,9 @@ class ExamResponse(BaseModel):
     specializationShortName: str
     studyYear: int
     
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True
+    }
 
 class ExamUpdateRequest(BaseModel):
     """Request model for updating exam information"""
@@ -40,8 +41,8 @@ class ExamUpdateRequest(BaseModel):
     status: Optional[str] = None
     notes: Optional[str] = None
     
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "date": "2025-06-15",
                 "startTime": "10:00:00",
@@ -53,3 +54,26 @@ class ExamUpdateRequest(BaseModel):
                 "notes": "Exam rescheduled due to room availability"
             }
         }
+    }
+
+class ExamProposalRequest(BaseModel):
+    """Request model for student group leader proposing an exam date"""
+    subjectId: int
+    date: date
+    startTime: time
+    endTime: time
+    groupId: int
+    notes: Optional[str] = None
+    
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "subjectId": 1,
+                "date": "2025-06-15",
+                "startTime": "10:00:00",
+                "endTime": "12:00:00",
+                "groupId": 1,
+                "notes": "We prefer morning exams if possible"
+            }
+        }
+    }

@@ -182,7 +182,9 @@ class Container(containers.DeclarativeContainer):
     config_service = providers.Factory(
         ConfigService,
         config_repository=config_repository,
-        email_service=email_service
+        email_service=email_service,
+        notification_service=notification_service,
+        user_service=user_service
     )
     
     excel_service = providers.Factory(
@@ -193,5 +195,9 @@ class Container(containers.DeclarativeContainer):
     
     exam_service = providers.Factory(
         ExamService,
-        exam_repository=exam_repository
+        exam_repository=exam_repository,
+        email_service=email_service,
+        notification_service=notification_service,
+        user_service=user_service,
+        subject_service=subject_service
     )

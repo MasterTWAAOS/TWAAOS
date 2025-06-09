@@ -277,3 +277,131 @@ class ExamRepository(IExamRepository):
             await self.db.rollback()
             logger.error(f"[DEBUG] ExamRepository - Error in update_exam: {str(e)}")
             raise
+
+    async def create_exam(self, exam_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new exam proposal or scheduled exam
+        
+        Args:
+            exam_data (Dict[str, Any]): Exam data including subject ID, date, time, etc.
+            
+        Returns:
+            Dict[str, Any]: Created exam data with ID and other details
+        """
+        logger.info(f"[DEBUG] ExamRepository - Creating new exam for subject {exam_data.get('subjectId')}")
+        
+        try:
+            # First check if there's an existing schedule for this subject
+            if 'subjectId' in exam_data:
+                subject_id = exam_data['subjectId']
+                existing_schedule_query = select(Schedule).where(Schedule.subjectId == subject_id)
+                result = await self.db.execute(existing_schedule_query)
+                existing_schedule = result.scalars().first()
+                
+                if existing_schedule:
+                    # If an exam already exists for this subject, update it instead of creating a new one
+                    logger.info(f"[DEBUG] ExamRepository - Found existing exam for subject {subject_id}, updating instead")
+                    
+                    # Update the schedule with proposed date/time
+                    if 'date' in exam_data:
+                        existing_schedule.date = exam_data['date']
+                    if 'startTime' in exam_data:
+                        existing_schedule.startTime = exam_data['startTime']
+                    if 'endTime' in exam_data:
+                        existing_schedule.endTime = exam_data['endTime']
+                    
+                    # Set status to the value provided in exam_data, default to 'proposed' if not specified
+                    existing_schedule.status = exam_data.get('status', 'proposed') 
+                    
+                    # Commit the changes
+                    await self.db.commit()
+                    await self.db.refresh(existing_schedule)
+                    
+                    # Get the updated exam with all details
+                    all_exams = await self.get_all_exams_with_details()
+                    updated_exam = next((exam for exam in all_exams if exam["id"] == existing_schedule.id), None)
+                    
+                    if updated_exam:
+                        return updated_exam
+                    else:
+                        logger.error(f"[DEBUG] ExamRepository - Updated exam with ID {existing_schedule.id} not found in details list")
+                        raise ValueError(f"Updated exam with ID {existing_schedule.id} not found")
+            
+            # No existing schedule found, create a new one
+            new_schedule = Schedule()
+            
+            # Set basic attributes
+            if 'date' in exam_data:
+                new_schedule.date = exam_data['date']
+            if 'startTime' in exam_data:
+                new_schedule.startTime = exam_data['startTime']
+            if 'endTime' in exam_data:
+                new_schedule.endTime = exam_data['endTime']
+            # Properly handle exam status based on the input or set default
+            if 'status' in exam_data:
+                # Use status from the input data
+                new_schedule.status = exam_data['status']
+                logger.info(f"[DEBUG] ExamRepository - Setting status from input: {exam_data['status']}")
+            else:
+                # Set default status for proposed exams
+                new_schedule.status = 'proposed'  # Default for new proposed exams
+                logger.info(f"[DEBUG] ExamRepository - Setting default status: proposed")
+            
+            # Set relationships
+            if 'subjectId' in exam_data:
+                # Get the subject
+                subject_query = select(Subject).where(Subject.id == exam_data['subjectId'])
+                result = await self.db.execute(subject_query)
+                subject = result.scalars().first()
+                
+                if subject:
+                    new_schedule.subject = subject
+                    # Subject already contains the group information, so we can access it via this relationship
+                    logger.info(f"[DEBUG] ExamRepository - Proposal for subject {subject.id} by group {subject.groupId}")
+                else:
+                    raise ValueError(f"Subject with ID {exam_data['subjectId']} not found")
+            else:
+                raise ValueError("Subject ID is required for exam creation")
+            
+            # Handle room requirement (roomId is NOT NULL in database)
+            if 'roomId' in exam_data and exam_data['roomId']:
+                # Get the room
+                room_query = select(Room).where(Room.id == exam_data['roomId'])
+                result = await self.db.execute(room_query)
+                room = result.scalars().first()
+                
+                if room:
+                    new_schedule.room = room
+                else:
+                    raise ValueError(f"Room with ID {exam_data['roomId']} not found")
+            else:
+                # For proposals, use a default room (to meet NOT NULL constraint)
+                # First try to get room with ID 1 (assuming this is a default room)
+                default_room_query = select(Room).limit(1)
+                result = await self.db.execute(default_room_query)
+                default_room = result.scalars().first()
+                
+                if default_room:
+                    new_schedule.room = default_room
+                    logger.info(f"[DEBUG] ExamRepository - Using default room (ID: {default_room.id}) for new exam proposal")
+                else:
+                    raise ValueError("Cannot create exam proposal: No rooms found in database (roomId cannot be NULL)")
+                
+            # Add and commit
+            self.db.add(new_schedule)
+            await self.db.commit()
+            await self.db.refresh(new_schedule)
+            
+            # Get the created exam with all details
+            all_exams = await self.get_all_exams_with_details()
+            created_exam = next((exam for exam in all_exams if exam["id"] == new_schedule.id), None)
+            
+            if created_exam:
+                return created_exam
+            else:
+                logger.error(f"[DEBUG] ExamRepository - Created exam with ID {new_schedule.id} not found in details list")
+                raise ValueError(f"Created exam with ID {new_schedule.id} not found")
+                
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"[DEBUG] ExamRepository - Error in create_exam: {str(e)}")
+            raise

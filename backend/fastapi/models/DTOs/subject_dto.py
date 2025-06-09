@@ -22,6 +22,12 @@ class SubjectUpdate(BaseModel):
 
 class SubjectResponse(SubjectBase):
     id: int
+    professorName: Optional[str] = None
+    professorEmail: Optional[str] = None
+    examStatus: Optional[str] = None
+    needsProposal: Optional[bool] = None
+    code: Optional[str] = None
+    semester: Optional[int] = None
 
     class Config:
         from_attributes = True

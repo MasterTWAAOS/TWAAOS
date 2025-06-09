@@ -626,9 +626,10 @@ export default {
     ])
     
     const statusOptions = ref([
-      { label: 'Programat', value: 'programat' },
-      { label: 'Propus', value: 'propus' },
-      { label: 'Anulat', value: 'anulat' }
+      { label: 'Programat', value: 'approved' },
+      { label: 'Propus', value: 'proposed' },
+      { label: 'În așteptare', value: 'pending' },
+      { label: 'Anulat/Respins', value: 'rejected' }
     ])
     
     const roomOptions = ref([
@@ -671,35 +672,37 @@ export default {
       return `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
     }
     
-    // Get severity class for status tag
+    // Get status severity class based on status
     const getStatusSeverity = (status) => {
-      switch(status?.toUpperCase()) {
-        case 'SCHEDULED':
-        case 'PROGRAMAT':
+      const normalizedStatus = status?.toLowerCase() || '';
+      
+      switch(normalizedStatus) {
+        case 'approved':
           return 'success'
-        case 'PENDING':
-        case 'PROPUS':
+        case 'proposed':
           return 'warning'
-        case 'CANCELED':
-        case 'ANULAT':
+        case 'pending':
+          return 'info'
+        case 'rejected':
           return 'danger'
         default:
-          return 'info'
+          return 'secondary'
       }
     }
     
-    // Get status label in Romanian
+    // Get status label in Romanian (for display purposes)
     const getStatusLabel = (status) => {
-      switch(status?.toUpperCase()) {
-        case 'SCHEDULED':
-        case 'PROGRAMAT':
+      const normalizedStatus = status?.toLowerCase() || '';
+      
+      switch(normalizedStatus) {
+        case 'approved':
           return 'Programat'
-        case 'PENDING':
-        case 'PROPUS':
+        case 'proposed':
           return 'Propus'
-        case 'CANCELED':
-        case 'ANULAT':
-          return 'Anulat'
+        case 'pending':
+          return 'În așteptare'
+        case 'rejected':
+          return 'Respins/Anulat'
         default:
           return status || 'Necunoscut'
       }
@@ -1089,21 +1092,24 @@ export default {
         duration = durationOptions.value[0].value;
       }
       
-      // Ensure status is in the right format
+      // Ensure status is in the standardized English format
       let statusValue;
       if (exam.status) {
-        const upperStatus = exam.status.toUpperCase();
-        if (upperStatus === 'SCHEDULED' || upperStatus === 'PROGRAMAT') {
-          statusValue = 'programat';
-        } else if (upperStatus === 'PENDING' || upperStatus === 'PROPUS') {
-          statusValue = 'propus';
-        } else if (upperStatus === 'CANCELED' || upperStatus === 'ANULAT') {
-          statusValue = 'anulat';
+        const normalizedStatus = exam.status.toLowerCase();
+        if (normalizedStatus.includes('approved') || normalizedStatus.includes('scheduled') || normalizedStatus.includes('programat')) {
+          statusValue = 'approved';
+        } else if (normalizedStatus.includes('pending') || normalizedStatus.includes('asteptare')) {
+          statusValue = 'pending';
+        } else if (normalizedStatus.includes('rejected') || normalizedStatus.includes('canceled') || normalizedStatus.includes('anulat') || normalizedStatus.includes('respins')) {
+          statusValue = 'rejected';
+        } else if (normalizedStatus.includes('proposed') || normalizedStatus.includes('propus')) {
+          statusValue = 'proposed';
         } else {
-          statusValue = 'propus';
+          // Default to proposed if status is unknown
+          statusValue = 'proposed';
         }
       } else {
-        statusValue = 'propus';
+        statusValue = 'proposed';
       }
       
       // Create complete exam object for edit dialog
@@ -1159,7 +1165,7 @@ export default {
           roomId: editDialog.exam.room.id,
           teacherId: editDialog.exam.professor.id,
           groups: editDialog.exam.groups.map(g => g.id),
-          status: editDialog.exam.status || 'propus',
+          status: editDialog.exam.status || 'proposed',
           notes: editDialog.exam.notes
         }
         

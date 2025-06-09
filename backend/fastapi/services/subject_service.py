@@ -215,3 +215,66 @@ class SubjectService(ISubjectService):
         """
         logger.info("Deleting all subjects...")
         return await self.subject_repository.delete_all()
+        
+    async def get_subject_with_teacher(self, subject_id: int):
+        """Get a subject with its teacher relationship fully loaded.
+        
+        This method retrieves a subject and ensures that the teacher relationship is loaded.
+        It's used primarily for displaying teacher information in the UI.
+        
+        Args:
+            subject_id: ID of the subject to retrieve
+            
+        Returns:
+            The subject model with teacher relationship loaded, or None if not found
+        """
+        logger.info(f"Loading subject with teacher for subject ID: {subject_id}")
+        
+        # Get the subject with all relationships
+        subject = await self.subject_repository.get_by_id(subject_id)
+        
+        if not subject:
+            logger.warning(f"Subject with ID {subject_id} not found")
+            return None
+            
+        # Ensure teacher data is loaded if available
+        if hasattr(subject, 'teacherId') and subject.teacherId:
+            try:
+                # Get teacher user directly from the user repository
+                teacher = await self.user_repository.get_by_id(subject.teacherId)
+                if teacher:
+                    # Set the teacher relationship explicitly
+                    subject.teacher = teacher
+                    logger.info(f"Loaded teacher data for subject {subject_id}: {teacher.firstName} {teacher.lastName}")
+                else:
+                    logger.warning(f"Teacher with ID {subject.teacherId} not found for subject {subject_id}")
+            except Exception as e:
+                logger.error(f"Error loading teacher data for subject {subject_id}: {str(e)}")
+                
+        return subject
+
+    async def get_group_by_id(self, group_id: int):
+        """Get a group by its ID.
+        
+        Args:
+            group_id: ID of the group to retrieve
+            
+        Returns:
+            The group model or None if not found
+        """
+        logger.info(f"Getting group with ID: {group_id}")
+        
+        try:
+            # Use the group repository to get the group by ID
+            group = await self.group_repository.get_by_id(group_id)
+            
+            if group:
+                logger.info(f"Found group: {group.name} (ID: {group.id})")
+            else:
+                logger.warning(f"No group found with ID: {group_id}")
+                
+            return group
+            
+        except Exception as e:
+            logger.error(f"Error retrieving group with ID {group_id}: {str(e)}")
+            return None

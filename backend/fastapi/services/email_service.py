@@ -47,32 +47,44 @@ class EmailService(IEmailService):
         Returns:
             bool: True if sent successfully, False otherwise
         """
-        if not self.sg_client:
-            logger.warning("SendGrid client not initialized. Email not sent.")
+        logger.info(f"[DEBUG] EmailService - Attempting to send email to: {to_email}, Subject: {subject}")
+        
+        # Check API key and client setup
+        if not self.api_key:
+            logger.error("[DEBUG] EmailService - SendGrid API key not configured. Check SENDGRID_API_KEY environment variable.")
             return False
             
+        if not self.sg_client:
+            logger.error("[DEBUG] EmailService - SendGrid client not initialized. Email not sent.")
+            return False
+            
+        # Validate recipient email
+        if not to_email or '@' not in to_email:
+            logger.error(f"[DEBUG] EmailService - Invalid recipient email: {to_email}")
+            return False
+            
+        message = Mail(
+            from_email=Email(self.from_email),
+            to_emails=To(to_email),
+            subject=subject,
+            html_content=Content("text/html", content)
+        )
+        
         try:
-            message = Mail(
-                from_email=self.from_email,
-                to_emails=to_email,
-                subject=subject,
-                html_content=content
-            )
+            logger.info(f"[DEBUG] EmailService - Sending email via SendGrid: From={self.from_email}, To={to_email}")
+            response = self.sg_client.send(message=message)
             
-            response = self.sg_client.send(message)
-            
-            if response.status_code >= 200 and response.status_code < 300:
-                logger.info(f"Email sent successfully to {to_email}")
+            if response.status_code == 202:
+                logger.info(f"[DEBUG] EmailService - Email sent successfully to {to_email}")
                 return True
             else:
-                logger.error(f"Failed to send email. Status code: {response.status_code}")
+                logger.error(f"[DEBUG] EmailService - Failed to send email to {to_email}. Status code: {response.status_code}")
                 return False
-                
         except HTTPError as e:
-            logger.error(f"SendGrid API error: {e.body}")
+            logger.error(f"[DEBUG] EmailService - SendGrid HTTP error: {e.to_dict}")
             return False
         except Exception as e:
-            logger.error(f"Unexpected error sending email: {e}")
+            logger.error(f"[DEBUG] EmailService - Error sending email: {str(e)}")
             return False
     
     async def send_bulk_email(self, to_emails: List[str], subject: str, content: str) -> Dict[str, bool]:
@@ -154,3 +166,37 @@ class EmailService(IEmailService):
         
         # Send notifications
         return await self.send_exam_period_notification(sg_emails, start_date, end_date)
+        
+    async def send_exam_proposal_notification(self, teacher_email: str, subject_name: str, group_name: str, date: str) -> bool:
+        """Send notification to a Course Director about a new exam date proposal.
+        
+        Args:
+            teacher_email: The course director's email address
+            subject_name: The name of the subject for which the exam is proposed
+            group_name: The name of the student group proposing the exam date
+            date: The proposed exam date (formatted string)
+            
+        Returns:
+            bool: True if sent successfully, False otherwise
+        """
+        subject = "Notificare: Propunere nouă de programare examen"
+        
+        # Create Romanian notification content
+        html_content = f"""
+        <html>
+            <body>
+                <h2>O nouă propunere de examen a fost trimisă pentru aprobarea dumneavoastră</h2>
+                <p>Detalii despre propunere:</p>
+                <ul>
+                    <li><strong>Disciplina:</strong> {subject_name}</li>
+                    <li><strong>Grupa:</strong> {group_name}</li>
+                    <li><strong>Data propusă:</strong> {date}</li>
+                </ul>
+                <p>Puteți accesa aplicația pentru a aproba sau respinge această propunere.</p>
+                <p>Acesta este un mesaj automat. Vă rugăm să nu răspundeți la acest email.</p>
+                <p>Cu stimă,<br>Sistemul TWAAOS</p>
+            </body>
+        </html>
+        """
+        
+        return await self.send_email(teacher_email, subject, html_content)

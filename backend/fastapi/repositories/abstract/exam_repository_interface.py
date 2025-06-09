@@ -62,3 +62,15 @@ class IExamRepository(ABC):
             Dict[str, Any]: Updated exam data
         """
         pass
+    
+    @abstractmethod
+    async def create_exam(self, exam_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new exam proposal or scheduled exam
+        
+        Args:
+            exam_data (Dict[str, Any]): Exam data including subject ID, group ID, date, time, etc.
+            
+        Returns:
+            Dict[str, Any]: Created exam data with ID and other details
+        """
+        pass

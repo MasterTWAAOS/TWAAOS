@@ -5,16 +5,26 @@ from fastapi import HTTPException
 
 from models.config import Config
 from models.DTOs.config_dto import ConfigResponse
+from models.DTOs.notification_dto import NotificationCreate
 from repositories.abstract.config_repository_interface import IConfigRepository
 from services.abstract.config_service_interface import IConfigService
 from services.abstract.email_service_interface import IEmailService
+from services.abstract.notification_service_interface import INotificationService
+from services.abstract.user_service_interface import IUserService
+from models.user import UserRole
 
 logger = logging.getLogger(__name__)
 
 class ConfigService(IConfigService):
-    def __init__(self, config_repository: IConfigRepository, email_service: Optional[IEmailService] = None):
+    def __init__(self, 
+                 config_repository: IConfigRepository, 
+                 email_service: Optional[IEmailService] = None,
+                 notification_service: Optional[INotificationService] = None,
+                 user_service: Optional[IUserService] = None):
         self.config_repository = config_repository
         self.email_service = email_service
+        self.notification_service = notification_service
+        self.user_service = user_service
 
     async def get_current_config(self) -> Optional[ConfigResponse]:
         """Get the current/latest configuration"""
@@ -57,18 +67,36 @@ class ConfigService(IConfigService):
         end_date_formatted = end_date.strftime("%d-%m-%Y")
         
         # Send email notification to all SG users about the new exam period
-        if self.email_service:
+        if self.email_service and self.notification_service and self.user_service:
             try:
-                await self.email_service.notify_sg_users_about_new_exam_period(
-                    start_date=start_date_formatted,
-                    end_date=end_date_formatted
-                )
-                logger.info(f"Sent exam period notification emails for period {start_date_formatted} to {end_date_formatted}")
+                # Get all SG users to send notifications
+                sg_users = await self.user_service.get_users_by_role(UserRole.SG)
+                if not sg_users:
+                    logger.warning("No SG users found to notify about exam period")
+                else:
+                    # Send email notifications
+                    email_results = await self.email_service.notify_sg_users_about_new_exam_period(
+                        start_date=start_date_formatted,
+                        end_date=end_date_formatted
+                    )
+                    
+                    # Log notifications in database for each successful email
+                    for user in sg_users:
+                        if user.email and email_results.get(user.email, False):
+                            notification_data = NotificationCreate(
+                                userId=user.id,
+                                message=f"Perioada de examene a fost configurată: {start_date_formatted} - {end_date_formatted}",
+                                status="trimis"
+                            )
+                            
+                            await self.notification_service.create_notification(notification_data)
+                    
+                    logger.info(f"Sent and logged exam period notification emails for period {start_date_formatted} to {end_date_formatted}")
             except Exception as e:
-                logger.error(f"Failed to send exam period notification emails: {e}")
-                # Don't fail the operation if email sending fails
+                logger.error(f"Failed to send or log exam period notification emails: {e}")
+                # Don't fail the operation if email/notification process fails
         else:
-            logger.warning("Email service not available - no notifications sent for new exam period")
+            logger.warning("Required services not available - no notifications sent for new exam period")
         
         return ConfigResponse.model_validate(created_config)
         
@@ -99,6 +127,40 @@ class ConfigService(IConfigService):
             start_date=start_date,
             end_date=end_date
         )
+        
+        # If dates changed, send email notification to all SG users about the updated exam period
+        if (start_date is not None or end_date is not None) and self.email_service and self.notification_service and self.user_service:
+            try:
+                # Format dates for display in email
+                start_date_formatted = start.strftime("%d-%m-%Y")
+                end_date_formatted = end.strftime("%d-%m-%Y")
+                
+                # Get all SG users to send notifications
+                sg_users = await self.user_service.get_users_by_role(UserRole.SG)
+                if not sg_users:
+                    logger.warning("No SG users found to notify about updated exam period")
+                else:
+                    # Send email notifications
+                    email_results = await self.email_service.notify_sg_users_about_new_exam_period(
+                        start_date=start_date_formatted,
+                        end_date=end_date_formatted
+                    )
+                    
+                    # Log notifications in database for each successful email
+                    for user in sg_users:
+                        if user.email and email_results.get(user.email, False):
+                            notification_data = NotificationCreate(
+                                userId=user.id,
+                                message=f"Perioada de examene a fost actualizată: {start_date_formatted} - {end_date_formatted}",
+                                status="trimis"
+                            )
+                            
+                            await self.notification_service.create_notification(notification_data)
+                    
+                    logger.info(f"Sent and logged update exam period notification emails for period {start_date_formatted} to {end_date_formatted}")
+            except Exception as e:
+                logger.error(f"Failed to send or log updated exam period notification emails: {e}")
+                # Don't fail the operation if email/notification process fails
         
         return ConfigResponse.model_validate(updated_config)
 

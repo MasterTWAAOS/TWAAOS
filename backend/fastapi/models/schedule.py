@@ -11,7 +11,7 @@ class Schedule(Base):
     date = Column(Date, nullable=False)
     startTime = Column(Time, nullable=False)
     endTime = Column(Time, nullable=False)
-    status = Column(String, nullable=False)  # ex: 'propus', 'acceptat', 'respins'
+    status = Column(String, nullable=False)  # ex: 'pending', 'proposed', 'approved', 'rejected'
     
     # Relationships
     subject = relationship("Subject", back_populates="schedules")

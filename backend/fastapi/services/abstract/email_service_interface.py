@@ -45,3 +45,31 @@ class IEmailService(ABC):
             Dict[str, bool]: Dictionary with email addresses as keys and success status as values
         """
         pass
+        
+    @abstractmethod
+    async def notify_sg_users_about_new_exam_period(self, start_date: str, end_date: str) -> Dict[str, bool]:
+        """Send notification to all Study Group (SG) users about new exam period.
+        
+        Args:
+            start_date: Start date of the exam period (formatted string)
+            end_date: End date of the exam period (formatted string)
+            
+        Returns:
+            Dict[str, bool]: Dictionary with email addresses as keys and success status as values
+        """
+        pass
+        
+    @abstractmethod
+    async def send_exam_proposal_notification(self, teacher_email: str, subject_name: str, group_name: str, date: str) -> bool:
+        """Send notification to a Course Director about a new exam date proposal.
+        
+        Args:
+            teacher_email: The course director's email address
+            subject_name: The name of the subject for which the exam is proposed
+            group_name: The name of the student group proposing the exam date
+            date: The proposed exam date (formatted string)
+            
+        Returns:
+            bool: True if sent successfully, False otherwise
+        """
+        pass

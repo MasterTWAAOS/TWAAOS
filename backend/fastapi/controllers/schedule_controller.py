@@ -107,7 +107,7 @@ async def get_schedules_by_status(
     """Get schedules with a specific status.
     
     Args:
-        status (str): The status to filter by (e.g., 'propus', 'acceptat', 'respins')
+        status (str): The status to filter by (e.g., 'pending', 'proposed', 'approved', 'rejected')
         
     Returns:
         List[ScheduleResponse]: A list of schedules with the specified status
@@ -139,11 +139,15 @@ async def create_schedule(
             detail=str(e)
         )
 
+from fastapi.encoders import jsonable_encoder
+from fastapi import Body
+
 @router.put("/{schedule_id}", response_model=ScheduleResponse, summary="Update schedule", description="Update an existing schedule's information")
 @inject
 async def update_schedule(
     schedule_id: int, 
-    schedule_data: ScheduleUpdate, 
+    # Allow direct JSON data to help with validations
+    schedule_data: ScheduleUpdate = Body(...),
     service: IScheduleService = Depends(Provide[Container.schedule_service])
 ):
     """Update an existing schedule.
@@ -158,18 +162,42 @@ async def update_schedule(
     Raises:
         HTTPException: If the schedule is not found or validation fails
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Log the received data for debugging
+    logger.info(f"[DEBUG] Updating schedule {schedule_id} with data: {schedule_data}")
+    
+    # Make sure date and time fields are properly formatted
     try:
+        # Check for time format issues - these are common causes of 422 errors
+        if schedule_data.startTime and not isinstance(schedule_data.startTime, str):
+            logger.info(f"[DEBUG] startTime format: {type(schedule_data.startTime)}")
+            
+        if schedule_data.endTime and not isinstance(schedule_data.endTime, str):
+            logger.info(f"[DEBUG] endTime format: {type(schedule_data.endTime)}")
+    
+        # Proceed with update
         updated_schedule = await service.update_schedule(schedule_id, schedule_data)
         if not updated_schedule:
+            logger.error(f"[DEBUG] Schedule with ID {schedule_id} not found")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Schedule with ID {schedule_id} not found"
             )
+        logger.info(f"[DEBUG] Successfully updated schedule {schedule_id}")
         return updated_schedule
     except ValueError as e:
+        logger.error(f"[DEBUG] Value error updating schedule {schedule_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"[DEBUG] Unexpected error updating schedule {schedule_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating schedule: {str(e)}"
         )
 
 @router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete schedule", description="Delete a schedule from the system")

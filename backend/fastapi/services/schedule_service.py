@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional, Tuple, Dict, Any, Set
 from datetime import date
 import logging
 
@@ -14,6 +14,14 @@ from repositories.abstract.group_repository_interface import IGroupRepository
 from services.abstract.schedule_service_interface import IScheduleService
 
 class ScheduleService(IScheduleService):
+    # Define the permitted status values for exams - English only
+    VALID_STATUSES: Set[str] = {
+        'pending',       # Waiting for approval
+        'proposed',      # Proposed by student group
+        'approved',      # Approved by course director
+        'rejected'       # Rejected by course director
+    }
+    
     def __init__(self, schedule_repository: IScheduleRepository,
                  subject_repository: ISubjectRepository,
                  user_repository: IUserRepository,
@@ -149,7 +157,8 @@ class ScheduleService(IScheduleService):
             is_valid: True if validation passes, False otherwise
             error_message: Description of the error if validation fails, None otherwise
         """
-        # Check if room exists        room = await self.room_repository.get_by_id(room_id)
+        # Check if room exists
+        room = await self.room_repository.get_by_id(room_id)
         if not room:
             return False, f"Room with ID {room_id} does not exist"
         return True, None
@@ -171,6 +180,26 @@ class ScheduleService(IScheduleService):
         
         # All checks passed
         return True, None
+        
+    async def validate_status(self, status: str) -> Tuple[bool, Optional[str]]:
+        """Validates if the status value is permitted.
+        
+        Args:
+            status: The status value to validate
+            
+        Returns:
+            Tuple containing (is_valid, error_message)
+            is_valid: True if validation passes, False otherwise
+            error_message: Description of the error if validation fails, None otherwise
+        """
+        if not status:
+            return False, "Status cannot be empty"
+            
+        if status.lower() not in {s.lower() for s in self.VALID_STATUSES}:
+            valid_statuses = "', '".join(sorted(self.VALID_STATUSES))
+            return False, f"Invalid status '{status}'. Valid status values are: '{valid_statuses}'"
+            
+        return True, None
 
     async def create_schedule(self, schedule_data: ScheduleCreate) -> ScheduleResponse:
         # Validate all foreign keys
@@ -179,10 +208,13 @@ class ScheduleService(IScheduleService):
         if not is_valid:
             raise ValueError(error_message)
             
-
-            
         # Validate room ID
         is_valid, error_message = await self.validate_room_id(schedule_data.roomId)
+        if not is_valid:
+            raise ValueError(error_message)
+            
+        # Validate status
+        is_valid, error_message = await self.validate_status(schedule_data.status)
         if not is_valid:
             raise ValueError(error_message)
         
@@ -217,6 +249,12 @@ class ScheduleService(IScheduleService):
             is_valid, error_message = await self.validate_room_id(schedule_data.roomId)
             if not is_valid:
                 raise ValueError(error_message)
+                
+        # Validate status if provided
+        if schedule_data.status is not None:
+            is_valid, error_message = await self.validate_status(schedule_data.status)
+            if not is_valid:
+                raise ValueError(error_message)
             
         # Update schedule fields if provided
         if schedule_data.subjectId is not None:
@@ -231,6 +269,7 @@ class ScheduleService(IScheduleService):
         if schedule_data.endTime is not None:
             schedule.endTime = schedule_data.endTime
         if schedule_data.status is not None:
+            logger.info(f"[DEBUG] Updating schedule {schedule_id} status to: {schedule_data.status}")
             schedule.status = schedule_data.status
             
         # Save changes
