@@ -77,7 +77,7 @@ class ExamService {
    * @returns {Promise} API Response
    */
   updateExam(examId, examData) {
-    return apiClient.put(`/excel-templates/exams/${examId}`, examData)
+    return apiClient.put(`/exams/${examId}`, examData)
   }
   
   /**

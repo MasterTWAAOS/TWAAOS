@@ -49,3 +49,16 @@ class IExamService(ABC):
             List[ExamResponse]: List of exams for the group
         """
         pass
+        
+    @abstractmethod
+    async def update_exam(self, exam_id: int, exam_data: Dict[str, Any]) -> ExamResponse:
+        """Update an exam with new information
+        
+        Args:
+            exam_id (int): ID of the exam to update
+            exam_data (Dict[str, Any]): Updated exam data including date, location, professor, etc.
+            
+        Returns:
+            ExamResponse: Updated exam data response
+        """
+        pass

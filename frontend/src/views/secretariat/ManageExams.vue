@@ -2,7 +2,7 @@
   <div class="manage-exams">
     <h1>Gestionare Examene</h1>
     
-    <Card>
+    <Card class="exams-card">
       <template #content>
         <TabView>
           <TabPanel header="Lista Examene">
@@ -28,6 +28,8 @@
               filterDisplay="menu"
               :rowHover="true"
               removableSort
+              class="expanded-table"
+              style="width: 100%; overflow-x: auto; min-width: 1000px;"
             >
               <template #empty>Nu există examene programate.</template>
               <template #loading>Se încarcă examenele, vă rugăm așteptați...</template>
@@ -98,13 +100,13 @@
               
               <Column field="status" header="Status" :sortable="true">
                 <template #body="slotProps">
-                  <Tag :severity="getStatusSeverity(slotProps.data.status)">
-                    {{ getStatusLabel(slotProps.data.status) }}
+                  <Tag :severity="getStatusSeverity(slotProps.data?.status)">
+                    {{ getStatusLabel(slotProps.data?.status) }}
                   </Tag>
                 </template>
               </Column>
               
-              <Column header="Acțiuni" style="min-width:8rem">
+              <Column header="Acțiuni" style="min-width:12rem">
                 <template #body="slotProps">
                   <div class="action-buttons">
                     <Button 
@@ -179,7 +181,7 @@
                   </template>
                 </Column>
                 
-                <Column header="Acțiuni" style="min-width:8rem">
+                <Column header="Acțiuni" style="min-width:12rem">
                   <template #body="slotProps">
                     <div class="action-buttons">
                       <Button 
@@ -416,15 +418,19 @@
             />
           </div>
           
-          <div class="p-field p-col-12">
-            <label for="edit-notes">Observații</label>
-            <Textarea 
-              id="edit-notes" 
-              v-model="editDialog.exam.notes" 
-              rows="3"
+          <div class="p-field p-col-12 p-md-6">
+            <label for="edit-status">Status</label>
+            <Dropdown 
+              id="edit-status" 
+              v-model="editDialog.exam.status" 
+              :options="statusOptions" 
+              optionLabel="label"
+              optionValue="value"
               :disabled="editDialog.loading"
             />
           </div>
+          
+          <!-- Notes field removed as requested -->
         </div>
       </div>
       
@@ -497,6 +503,9 @@ import axios from 'axios'
 import { useConfirm } from 'primevue/useconfirm'
 import examService from '@/services/exam.service'
 import roomService from '@/services/room.service'
+import teacherService from '@/services/teacher.service'
+import subjectService from '@/services/subject.service'
+import groupService from '@/services/group.service'
 import Card from 'primevue/card'
 import TabView from 'primevue/tabview'
 import TabPanel from 'primevue/tabpanel'
@@ -616,6 +625,12 @@ export default {
       { label: '4 ore', value: 4 }
     ])
     
+    const statusOptions = ref([
+      { label: 'Programat', value: 'programat' },
+      { label: 'Propus', value: 'propus' },
+      { label: 'Anulat', value: 'anulat' }
+    ])
+    
     const roomOptions = ref([
       { id: 1, name: 'C1', capacity: 120 },
       { id: 2, name: 'C2', capacity: 150 },
@@ -658,15 +673,35 @@ export default {
     
     // Get severity class for status tag
     const getStatusSeverity = (status) => {
-      switch(status) {
+      switch(status?.toUpperCase()) {
         case 'SCHEDULED':
+        case 'PROGRAMAT':
           return 'success'
         case 'PENDING':
+        case 'PROPUS':
           return 'warning'
         case 'CANCELED':
+        case 'ANULAT':
           return 'danger'
         default:
           return 'info'
+      }
+    }
+    
+    // Get status label in Romanian
+    const getStatusLabel = (status) => {
+      switch(status?.toUpperCase()) {
+        case 'SCHEDULED':
+        case 'PROGRAMAT':
+          return 'Programat'
+        case 'PENDING':
+        case 'PROPUS':
+          return 'Propus'
+        case 'CANCELED':
+        case 'ANULAT':
+          return 'Anulat'
+        default:
+          return status || 'Necunoscut'
       }
     }
     
@@ -756,6 +791,15 @@ export default {
         
         // Set the rooms data
         rooms.value = response
+        
+        // Update roomOptions from the real data
+        roomOptions.value = response.map(room => ({
+          id: room.id,
+          name: room.name,
+          capacity: room.capacity || 0
+        }))
+        
+        console.log('Loaded rooms:', roomOptions.value);
         
         store.dispatch('notifications/showNotification', {
           severity: 'success',
@@ -916,8 +960,168 @@ export default {
 
     // Edit exam
     const editExam = (exam) => {
-      editDialog.exam = { ...exam }
-      editDialog.visible = true
+      console.log('Original exam data:', exam);
+      
+      // Convert date string to Date object if needed
+      let examDate;
+      if (exam.date) {
+        examDate = typeof exam.date === 'string' ? new Date(exam.date) : exam.date;
+      }
+      
+      // Process startTime to ensure correct format
+      let startTime;
+      if (exam.startTime) {
+        // First check if it's a full object
+        if (typeof exam.startTime === 'object' && exam.startTime !== null && exam.startTime.value) {
+          startTime = exam.startTime;
+        } 
+        // Then check if it's a string and find matching option
+        else if (typeof exam.startTime === 'string') {
+          console.log('Finding time option for:', exam.startTime);
+          console.log('Available time options:', timeOptions.value);
+          const timeOption = timeOptions.value.find(t => t.value === exam.startTime || t.label === exam.startTime);
+          startTime = timeOption || timeOptions.value[0];
+        } 
+        // Fallback
+        else {
+          startTime = timeOptions.value[0];
+        }
+      } else {
+        startTime = timeOptions.value[0];
+      }
+      console.log('Selected startTime:', startTime);
+      
+      // Make proper room object
+      let roomObject;
+      console.log('Finding room match. Room data:', exam.room);
+      console.log('Available roomOptions:', roomOptions.value);
+      
+      if (typeof exam.room === 'object' && exam.room !== null) {
+        // Try to find by id first
+        if (exam.room.id) {
+          roomObject = roomOptions.value.find(r => r.id === exam.room.id);
+        }
+        // Then try by name
+        if (!roomObject && exam.room.name) {
+          roomObject = roomOptions.value.find(r => r.name === exam.room.name);
+        }
+        // If not found, use the original object
+        if (!roomObject) {
+          roomObject = exam.room;
+        }
+      } 
+      // Try by room ID if available
+      else if (exam.roomId) {
+        roomObject = roomOptions.value.find(r => r.id === exam.roomId);
+      }
+      // Try by room name if no ID
+      else if (exam.roomName) {
+        roomObject = roomOptions.value.find(r => r.name === exam.roomName);
+      }
+      
+      console.log('Selected roomObject:', roomObject);
+      
+      // Make proper professor object
+      let professorObject;
+      console.log('Finding professor match. Professor data:', exam.professor);
+      console.log('Available professorOptions:', professorOptions.value);
+      
+      if (typeof exam.professor === 'object' && exam.professor !== null) {
+        // Try to find by id first
+        if (exam.professor.id) {
+          professorObject = professorOptions.value.find(p => p.id === exam.professor.id);
+        }
+        // Then try by name
+        if (!professorObject && exam.professor.name) {
+          professorObject = professorOptions.value.find(p => p.name === exam.professor.name);
+        }
+        // If not found, use the original object
+        if (!professorObject) {
+          professorObject = exam.professor;
+        }
+      }
+      // Try by teacher ID if available 
+      else if (exam.teacherId) {
+        professorObject = professorOptions.value.find(p => p.id === exam.teacherId);
+      }
+      // Try by teacher name if no ID
+      else if (exam.teacherName) {
+        professorObject = professorOptions.value.find(p => p.name === exam.teacherName);
+      }
+      
+      console.log('Selected professorObject:', professorObject);
+      
+      // Make proper groups array
+      let groupsArray = [];
+      if (Array.isArray(exam.groups) && exam.groups.length > 0) {
+        // Map existing groups to ensure they're in the right format and filter out any invalid entries
+        groupsArray = exam.groups
+          .filter(group => group && (group.id || group.name))
+          .map(group => {
+            // Try to find a matching group in options
+            const matchingGroup = groupOptions.value.find(g => g.id === group.id || g.name === group.name);
+            return matchingGroup || group;
+          });
+      } else if (exam.groupId) {
+        const group = groupOptions.value.find(g => g.id === exam.groupId) || 
+          { id: exam.groupId, name: exam.groupName || 'Nedefinită' };
+        groupsArray = [group];
+      }
+      
+      // Make proper subject object
+      let subjectObject;
+      if (typeof exam.subject === 'object' && exam.subject !== null && exam.subject.id) {
+        subjectObject = subjectOptions.value.find(s => s.id === exam.subject.id) || exam.subject;
+      } else if (exam.subjectId) {
+        subjectObject = subjectOptions.value.find(s => s.id === exam.subjectId) || 
+          { id: exam.subjectId, name: exam.subjectName || 'Nedefinit' };
+      } else {
+        subjectObject = null;
+      }
+      
+      // Set duration - convert to number if needed
+      let duration;
+      if (typeof exam.duration === 'number') {
+        duration = exam.duration;
+      } else if (typeof exam.duration === 'string') {
+        duration = parseInt(exam.duration, 10);
+      } else {
+        duration = durationOptions.value[0].value;
+      }
+      
+      // Ensure status is in the right format
+      let statusValue;
+      if (exam.status) {
+        const upperStatus = exam.status.toUpperCase();
+        if (upperStatus === 'SCHEDULED' || upperStatus === 'PROGRAMAT') {
+          statusValue = 'programat';
+        } else if (upperStatus === 'PENDING' || upperStatus === 'PROPUS') {
+          statusValue = 'propus';
+        } else if (upperStatus === 'CANCELED' || upperStatus === 'ANULAT') {
+          statusValue = 'anulat';
+        } else {
+          statusValue = 'propus';
+        }
+      } else {
+        statusValue = 'propus';
+      }
+      
+      // Create complete exam object for edit dialog
+      editDialog.exam = { 
+        ...exam,
+        date: examDate,
+        startTime: startTime,
+        duration: duration,
+        room: roomObject,
+        professor: professorObject,
+        groups: groupsArray,
+        subject: subjectObject,
+        status: statusValue,
+        notes: exam.notes || ''
+      };
+      
+      console.log('Processed exam data for edit:', editDialog.exam);
+      editDialog.visible = true;
     }
     
     // Cancel edit
@@ -943,11 +1147,28 @@ export default {
       
       try {
         editDialog.loading = true
+
+        // Calculate end time if not present
+        const endTime = editDialog.exam.endTime || calculateEndTime(editDialog.exam.startTime, editDialog.exam.duration);
+
+        // Prepare data for API
+        const updateData = {
+          date: editDialog.exam.date,
+          startTime: editDialog.exam.startTime,
+          endTime: endTime,
+          roomId: editDialog.exam.room.id,
+          teacherId: editDialog.exam.professor.id,
+          groups: editDialog.exam.groups.map(g => g.id),
+          status: editDialog.exam.status || 'propus',
+          notes: editDialog.exam.notes
+        }
         
-        // In a real implementation, call the API
-        // await examService.updateExam(editDialog.exam.id, editDialog.exam)
+        console.log('Sending update data to API:', updateData);
         
-        // For demo purposes, update local list
+        // Call the backend API
+        const response = await examService.updateExam(editDialog.exam.id, updateData)
+        
+        // Update local list with the updated exam
         const index = exams.value.findIndex(e => e.id === editDialog.exam.id)
         if (index !== -1) {
           exams.value[index] = { ...editDialog.exam }
@@ -1110,10 +1331,89 @@ export default {
       }
     }
     
+    // Load professors data
+    const loadProfessors = async () => {
+      try {
+        // Call the API to get real professor data from the backend (Users with role 'CD')
+        const response = await teacherService.getAllTeachers()
+        
+        // Update professorOptions from the real data
+        professorOptions.value = response.map(professor => ({
+          id: professor.id,
+          // Teachers are users with firstName and lastName
+          name: `${professor.firstName || ''} ${professor.lastName || ''}`.trim()
+        })).filter(p => p.name) // Filter out any with empty names
+        
+        console.log('Loaded professors:', professorOptions.value);
+      } catch (error) {
+        console.error('Error loading professors:', error)
+        store.dispatch('notifications/showNotification', {
+          severity: 'error',
+          summary: 'Eroare',
+          detail: 'Nu s-au putut încărca cadre didactice',
+          life: 5000
+        })
+      }
+    }
+    
+    // Load subjects data
+    const loadSubjects = async () => {
+      try {
+        // Call the API to get real subject data from the backend
+        const response = await subjectService.getAllSubjects()
+        
+        // Update subjectOptions from the real data
+        subjectOptions.value = response.map(subject => ({
+          id: subject.id,
+          name: subject.name,
+          code: subject.code || ''
+        }))
+        
+        console.log('Loaded subjects:', subjectOptions.value);
+      } catch (error) {
+        console.error('Error loading subjects:', error)
+        store.dispatch('notifications/showNotification', {
+          severity: 'error',
+          summary: 'Eroare',
+          detail: 'Nu s-au putut încărca disciplinele',
+          life: 5000
+        })
+      }
+    }
+    
+    // Load groups data
+    const loadGroups = async () => {
+      try {
+        // Call the API to get real group data from the backend
+        const response = await groupService.getAllGroups()
+        
+        // Update groupOptions from the real data
+        groupOptions.value = response.map(group => ({
+          id: group.id,
+          name: group.name,
+          studyProgram: group.studyProgram || group.specializationShortName,
+          studyYear: group.studyYear || 1
+        }))
+        
+        console.log('Loaded groups:', groupOptions.value);
+      } catch (error) {
+        console.error('Error loading groups:', error)
+        store.dispatch('notifications/showNotification', {
+          severity: 'error',
+          summary: 'Eroare',
+          detail: 'Nu s-au putut încărca grupele',
+          life: 5000
+        })
+      }
+    }
+    
     // Initialize
     onMounted(() => {
       loadExams()
       loadRooms()
+      loadProfessors()
+      loadSubjects()
+      loadGroups()
     })
     
     return {
@@ -1125,6 +1425,7 @@ export default {
       groupOptions,
       timeOptions,
       durationOptions,
+      statusOptions,
       roomOptions,
       professorOptions,
       exams,
@@ -1133,6 +1434,7 @@ export default {
       formatDate,
       calculateEndTime,
       getStatusSeverity,
+      getStatusLabel,
       resetForm,
       saveExam,
       editExam,
@@ -1185,5 +1487,37 @@ export default {
   :deep(.p-tabview-panels) {
     padding: 1.5rem 0 0 0;
   }
+  
+  :deep(.expanded-table) {
+    min-width: 100%;
+    overflow-x: auto;
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+  }
+}
+
+.actions-column {
+  min-width: 12rem;
+  text-align: center;
+}
+
+.action-icons {
+  display: flex;
+  justify-content: space-around;
+}
+
+.expanded-table {
+  margin: 0 -1rem; /* Negative margin to expand beyond the card padding */
+  width: calc(100% + 2rem) !important;
+}
+
+.exams-card {
+  width: 98%;
+  max-width: 1600px;
+  margin: 0 auto;
 }
 </style>

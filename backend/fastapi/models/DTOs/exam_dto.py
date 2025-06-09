@@ -28,3 +28,28 @@ class ExamResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+class ExamUpdateRequest(BaseModel):
+    """Request model for updating exam information"""
+    date: Optional[date] = None
+    startTime: Optional[time] = None
+    endTime: Optional[time] = None
+    roomId: Optional[int] = None
+    teacherId: Optional[int] = None
+    groups: Optional[List[int]] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "date": "2025-06-15",
+                "startTime": "10:00:00",
+                "endTime": "12:00:00",
+                "roomId": 1,
+                "teacherId": 5,
+                "groups": [1, 2, 3],
+                "status": "scheduled",
+                "notes": "Exam rescheduled due to room availability"
+            }
+        }

@@ -49,3 +49,16 @@ class IExamRepository(ABC):
             List[Dict[str, Any]]: List of exam data for the group
         """
         pass
+    
+    @abstractmethod
+    async def update_exam(self, exam_id: int, exam_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update an exam with new information
+        
+        Args:
+            exam_id (int): ID of the exam to update
+            exam_data (Dict[str, Any]): Updated exam data including date, location, professor, etc.
+            
+        Returns:
+            Dict[str, Any]: Updated exam data
+        """
+        pass

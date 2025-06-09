@@ -194,3 +194,86 @@ class ExamRepository(IExamRepository):
         except Exception as e:
             logger.error(f"[DEBUG] ExamRepository - Error in get_exams_by_group_id: {str(e)}")
             raise
+            
+    async def update_exam(self, exam_id: int, exam_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update an exam with new information
+        
+        Args:
+            exam_id (int): ID of the exam to update
+            exam_data (Dict[str, Any]): Updated exam data including date, location, professor, etc.
+            
+        Returns:
+            Dict[str, Any]: Updated exam data
+        """
+        logger.info(f"[DEBUG] ExamRepository - update_exam: {exam_id}")
+        
+        try:
+            # Get the exam schedule by ID
+            query = select(Schedule).where(Schedule.id == exam_id)
+            result = await self.db.execute(query)
+            schedule = result.scalars().first()
+            
+            if not schedule:
+                logger.error(f"[DEBUG] ExamRepository - Exam with ID {exam_id} not found")
+                raise ValueError(f"Exam with ID {exam_id} not found")
+            
+            # Update schedule fields
+            if "date" in exam_data:
+                schedule.date = exam_data["date"]
+            if "startTime" in exam_data:
+                schedule.startTime = exam_data["startTime"]
+            if "endTime" in exam_data:
+                schedule.endTime = exam_data["endTime"]
+            if "status" in exam_data:
+                schedule.status = exam_data["status"]
+            if "notes" in exam_data:
+                schedule.notes = exam_data["notes"]
+                
+            # Update room if provided
+            if "roomId" in exam_data:
+                room_query = select(Room).where(Room.id == exam_data["roomId"])
+                room_result = await self.db.execute(room_query)
+                room = room_result.scalars().first()
+                
+                if room:
+                    schedule.room = room
+                else:
+                    logger.warning(f"[DEBUG] ExamRepository - Room with ID {exam_data['roomId']} not found")
+            
+            # Update teacher if provided
+            if "teacherId" in exam_data:
+                # We need to update the teacher in the subject relation
+                subject = schedule.subject
+                if subject:
+                    teacher_query = select(User).where(User.id == exam_data["teacherId"])
+                    teacher_result = await self.db.execute(teacher_query)
+                    teacher = teacher_result.scalars().first()
+                    
+                    if teacher:
+                        subject.teacher = teacher
+                    else:
+                        logger.warning(f"[DEBUG] ExamRepository - Teacher with ID {exam_data['teacherId']} not found")
+                else:
+                    logger.warning(f"[DEBUG] ExamRepository - Schedule {exam_id} has no subject relation")
+            
+            # Commit the changes
+            await self.db.commit()
+            
+            # Refresh the schedule
+            await self.db.refresh(schedule)
+            
+            # Get the updated exam with details
+            all_exams = await self.get_all_exams_with_details()
+            updated_exam = next((exam for exam in all_exams if exam["id"] == exam_id), None)
+            
+            if updated_exam:
+                logger.info(f"[DEBUG] ExamRepository - Successfully updated exam {exam_id}")
+                return updated_exam
+            else:
+                logger.error(f"[DEBUG] ExamRepository - Failed to retrieve updated exam {exam_id}")
+                raise ValueError(f"Failed to retrieve updated exam {exam_id}")
+            
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"[DEBUG] ExamRepository - Error in update_exam: {str(e)}")
+            raise

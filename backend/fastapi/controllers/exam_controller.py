@@ -1,8 +1,9 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Path, Body
 from dependency_injector.wiring import inject, Provide
+from typing import List, Dict, Any
 
-from models.DTOs.exam_dto import ExamResponse
+from models.DTOs.exam_dto import ExamResponse, ExamUpdateRequest
 from services.abstract.exam_service_interface import IExamService
 from config.containers import Container
 
@@ -106,4 +107,49 @@ async def get_exams_by_group(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving exams: {str(e)}"
+        )
+        
+@router.put("/{exam_id}", response_model=ExamResponse, summary="Update exam details", description="Update exam details such as date, time, room, professor, etc.")
+@inject
+async def update_exam(
+    exam_id: int = Path(..., description="The ID of the exam to update"),
+    exam_data: ExamUpdateRequest = Body(..., description="Updated exam details"),
+    service: IExamService = Depends(Provide[Container.exam_service])
+):
+    """Update exam details.
+    
+    This endpoint allows Secretariat (SEC) users to modify exam details such as date, time,
+    room, professor, status and notes.
+    
+    Args:
+        exam_id (int): The ID of the exam to update
+        exam_data (ExamUpdateRequest): Updated exam information
+        
+    Returns:
+        ExamResponse: The updated exam information
+        
+    Raises:
+        HTTPException: If the exam is not found or there's an error updating it
+    """
+    print(f"[DEBUG] ExamController - update_exam: {exam_id}")
+    
+    try:
+        # Convert Pydantic model to dict for service layer
+        update_data = exam_data.dict(exclude_unset=True)
+        updated_exam = await service.update_exam(exam_id, update_data)
+        
+        print(f"[DEBUG] ExamController - Successfully updated exam {exam_id}")
+        return updated_exam
+        
+    except ValueError as e:
+        print(f"[DEBUG] ExamController - Value error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        print(f"[DEBUG] ExamController - Error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating exam: {str(e)}"
         )

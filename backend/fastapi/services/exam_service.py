@@ -109,3 +109,29 @@ class ExamService(IExamService):
         except Exception as e:
             logger.error(f"[DEBUG] ExamService - Error in get_exams_by_group_id: {str(e)}")
             raise
+    
+    async def update_exam(self, exam_id: int, exam_data: Dict[str, Any]) -> ExamResponse:
+        """Update an exam with new information
+        
+        Args:
+            exam_id (int): ID of the exam to update
+            exam_data (Dict[str, Any]): Updated exam data including date, location, professor, etc.
+            
+        Returns:
+            ExamResponse: Updated exam data response
+        """
+        logger.info(f"[DEBUG] ExamService - update_exam: {exam_id}")
+        
+        try:
+            # Update exam in repository
+            updated_exam_data = await self.exam_repository.update_exam(exam_id, exam_data)
+            
+            # Convert to DTO response model
+            exam_response = ExamResponse.model_validate(updated_exam_data)
+            
+            logger.info(f"[DEBUG] ExamService - Successfully updated exam {exam_id}")
+            return exam_response
+            
+        except Exception as e:
+            logger.error(f"[DEBUG] ExamService - Error in update_exam: {str(e)}")
+            raise
