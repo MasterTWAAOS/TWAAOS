@@ -68,6 +68,21 @@ class UserService {
       }
     })
   }
+
+  /**
+   * Get users by role
+   * @param {string} role - User role (e.g., 'CD', 'SG', 'ADMIN')
+   * @param {Object} params - Additional query parameters (e.g., groupId)
+   * @returns {Promise} API Response
+   */
+  getUsersByRole(role, params = {}) {
+    return apiClient.get(`/users`, { 
+      params: { 
+        role: role,
+        ...params 
+      } 
+    })
+  }
 }
 
 export default new UserService()

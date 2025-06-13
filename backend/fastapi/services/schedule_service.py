@@ -1,9 +1,10 @@
 from typing import List, Optional, Tuple, Dict, Any, Set
-from datetime import date
+from datetime import date, time
 import logging
 
 from models.schedule import Schedule
 from models.DTOs.schedule_dto import ScheduleCreate, ScheduleUpdate, ScheduleResponse
+from models.DTOs.user_dto import UserResponse
 
 logger = logging.getLogger(__name__)
 from repositories.abstract.schedule_repository_interface import IScheduleRepository
@@ -114,12 +115,27 @@ class ScheduleService(IScheduleService):
         all_schedules = await self.schedule_repository.get_all()
         result_schedules = []
         
+        logger.info(f"Processing schedules for teacher_id={teacher_id}, found {len(all_schedules)} total schedules")
+        
         for schedule in all_schedules:
             subject = await self.subject_repository.get_by_id(schedule.subjectId)
             if subject and subject.teacherId == teacher_id:
-                result_schedules.append(schedule)
+                # Get the group information for this subject
+                group = await self.group_repository.get_by_id(subject.groupId) if subject.groupId else None
                 
-        return [ScheduleResponse.model_validate(schedule) for schedule in result_schedules]
+                # Create a dict from the schedule to be able to add additional fields
+                schedule_dict = {**schedule.__dict__}
+                if group:
+                    logger.info(f"Adding group data to schedule {schedule.id}: groupId={group.id}, groupName={group.name}")
+                    schedule_dict['groupId'] = group.id
+                    schedule_dict['groupName'] = group.name
+                else:
+                    logger.warning(f"No group found for schedule {schedule.id}, subject {schedule.subjectId} with groupId {subject.groupId if subject else None}")
+                
+                result_schedules.append(schedule_dict)
+                
+        # Convert the enhanced dictionaries to ScheduleResponse objects
+        return [ScheduleResponse.model_validate(schedule_data) for schedule_data in result_schedules]
         
     async def validate_subject_id(self, subject_id: int) -> Tuple[bool, Optional[str]]:
         """Validates if the subject_id exists.
@@ -137,6 +153,29 @@ class ScheduleService(IScheduleService):
         if not subject:
             return False, f"Subject with ID {subject_id} does not exist"
         return True, None
+        
+    async def get_subject_assistants(self, subject_id: int) -> List[UserResponse]:
+        """Get assistants (CD users) associated with a specific subject
+        
+        Args:
+            subject_id (int): The ID of the subject
+            
+        Returns:
+            List[UserResponse]: List of users who are assistants for this subject
+        """
+        # Get the subject to access its assistantIds
+        subject = await self.subject_repository.get_by_id(subject_id)
+        if not subject or not subject.assistantIds:
+            return []
+        
+        # Get user details for all assistant IDs in a single operation
+        assistants = []
+        for assistant_id in subject.assistantIds:
+            user = await self.user_repository.get_by_id(assistant_id)
+            if user and user.role == "CD":  # Verify the user exists and has CD role
+                assistants.append(UserResponse.model_validate(user))
+        
+        return assistants
     
     async def validate_teacher_id(self, teacher_id: int) -> Tuple[bool, Optional[str]]:
         teacher = await self.user_repository.get_by_id(teacher_id)
@@ -327,6 +366,87 @@ class ScheduleService(IScheduleService):
         
         # For the current implementation, we'll assume no conflicts
         return False, []
+        
+    async def check_conflicts(self, schedule_id: int, date: date, start_time: str, end_time: str, room_ids: List[int], assistant_ids: List[int]) -> Dict[str, Any]:
+        """Check for conflicts with existing schedules for rooms, assistants, and teacher
+        
+        Args:
+            schedule_id: ID of the schedule to exclude from conflict check
+            date: Date for the proposed schedule
+            start_time: Start time of proposed schedule in format HH:MM
+            end_time: End time of proposed schedule in format HH:MM
+            room_ids: List of room IDs to check for conflicts
+            assistant_ids: List of assistant IDs to check for conflicts
+            
+        Returns:
+            Dict[str, Any]: Dictionary with conflict information
+        """
+        # Convert string times to time objects
+        try:
+            start_time_obj = time.fromisoformat(start_time)
+            end_time_obj = time.fromisoformat(end_time)
+        except ValueError:
+            # If the time format is not ISO (HH:MM), try parsing it
+            try:
+                hour_start, minute_start = map(int, start_time.split(':'))
+                hour_end, minute_end = map(int, end_time.split(':'))
+                start_time_obj = time(hour=hour_start, minute=minute_start)
+                end_time_obj = time(hour=hour_end, minute=minute_end)
+            except Exception as e:
+                logger.error(f"Error parsing time values: {e}")
+                raise ValueError(f"Invalid time format. Expected HH:MM, got {start_time} and {end_time}")
+        
+        # Check for room conflicts
+        has_room_conflicts, room_conflict_msgs = await self.check_for_room_conflicts(
+            schedule_id, room_ids, date, start_time_obj, end_time_obj
+        )
+        
+        # Check for assistant conflicts
+        has_assistant_conflicts, assistant_conflict_msgs = await self.check_for_assistant_conflicts(
+            schedule_id, assistant_ids, date, start_time_obj, end_time_obj
+        )
+        
+        # Prepare detailed conflict information for frontend
+        room_conflicts = []
+        if has_room_conflicts:
+            # Get all schedules for the same date that are approved
+            all_schedules = await self.schedule_repository.get_all()
+            same_day_schedules = [
+                s for s in all_schedules 
+                if s.date == date and s.status == 'approved' and s.id != schedule_id
+            ]
+            
+            for schedule in same_day_schedules:
+                # Check for time overlap
+                if (start_time_obj < schedule.endTime and end_time_obj > schedule.startTime):
+                    # Check if any of the rooms conflict
+                    if schedule.roomId in room_ids:
+                        room = await self.room_repository.get_by_id(schedule.roomId)
+                        subject = None
+                        try:
+                            subject = await self.subject_repository.get_by_id(schedule.subjectId)
+                        except Exception:
+                            pass
+                        
+                        room_conflicts.append({
+                            "roomId": room.id,
+                            "roomName": room.name,
+                            "subjectId": schedule.subjectId,
+                            "subjectName": subject.name if subject else f"Subject {schedule.subjectId}",
+                            "startTime": schedule.startTime.isoformat(),
+                            "endTime": schedule.endTime.isoformat()
+                        })
+        
+        # For now, we'll return empty arrays for assistant and teacher conflicts
+        # but with the proper structure for the frontend to handle
+        assistant_conflicts = []
+        teacher_conflicts = []
+        
+        return {
+            "roomConflicts": room_conflicts,
+            "assistantConflicts": assistant_conflicts,
+            "teacherConflicts": teacher_conflicts
+        }
     
     async def send_notification_email(self, schedule_id: int, recipient_email: str, subject: str, message: str) -> bool:
         """Send notification email for schedule changes.

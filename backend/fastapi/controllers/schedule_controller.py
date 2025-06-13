@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
+from pydantic import BaseModel
+from typing import List, Optional
 from datetime import date
 from dependency_injector.wiring import inject, Provide
 
 from models.DTOs.schedule_dto import ScheduleCreate, ScheduleUpdate, ScheduleResponse
+from models.DTOs.user_dto import UserResponse
 from services.abstract.schedule_service_interface import IScheduleService
 from config.containers import Container
 
@@ -113,6 +115,31 @@ async def get_schedules_by_status(
         List[ScheduleResponse]: A list of schedules with the specified status
     """
     return await service.get_schedules_by_status(status)
+    
+@router.get("/teacher/{teacher_id}", response_model=List[ScheduleResponse], summary="Get schedules by teacher ID", description="Retrieve all schedules for subjects where the specified teacher is the professor")
+@inject
+async def get_schedules_by_teacher(
+    teacher_id: int,
+    status: Optional[str] = None,
+    service: IScheduleService = Depends(Provide[Container.schedule_service])
+):
+    """Get schedules for a specific teacher's subjects.
+    
+    Args:
+        teacher_id (int): The ID of the teacher (professor/CD)
+        status (Optional[str]): Optional status filter (e.g., 'pending', 'proposed', 'approved', 'rejected')
+        
+    Returns:
+        List[ScheduleResponse]: A list of schedules for the teacher's subjects
+    """
+    # Get all schedules for the teacher's subjects
+    schedules = await service.get_schedules_by_teacher_id(teacher_id)
+    
+    # Apply status filter if provided
+    if status:
+        schedules = [s for s in schedules if s.status == status]
+        
+    return schedules
 
 @router.post("", response_model=ScheduleResponse, status_code=status.HTTP_201_CREATED, summary="Create new schedule", description="Create a new schedule in the system")
 @inject
@@ -141,6 +168,30 @@ async def create_schedule(
 
 from fastapi.encoders import jsonable_encoder
 from fastapi import Body
+
+@router.get("/assistants/{subject_id}", response_model=List[UserResponse], summary="Get assistants for a subject", description="Get all assistants (CD users) associated with a specific subject")
+@inject
+async def get_subject_assistants(
+    subject_id: int,
+    service: IScheduleService = Depends(Provide[Container.schedule_service])
+):
+    """Get all assistants associated with a specific subject.
+    
+    Args:
+        subject_id (int): The ID of the subject
+        
+    Returns:
+        List[UserResponse]: A list of users who are assistants for this subject
+    """
+    # First validate that the subject exists
+    subject_valid, error_msg = await service.validate_subject_id(subject_id)
+    if not subject_valid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=error_msg
+        )
+    
+    return await service.get_subject_assistants(subject_id)
 
 @router.put("/{schedule_id}", response_model=ScheduleResponse, summary="Update schedule", description="Update an existing schedule's information")
 @inject
@@ -200,7 +251,7 @@ async def update_schedule(
             detail=f"Error updating schedule: {str(e)}"
         )
 
-@router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete schedule", description="Delete a schedule from the system")
+@router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete schedule", description="Delete a schedule by ID")
 @inject
 async def delete_schedule(
     schedule_id: int, 
@@ -217,10 +268,45 @@ async def delete_schedule(
     Raises:
         HTTPException: If the schedule is not found
     """
-    success = await service.delete_schedule(schedule_id)
-    if not success:
+    result = await service.delete_schedule(schedule_id)
+    if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Schedule with ID {schedule_id} not found"
         )
     return None
+
+
+class ConflictCheckRequest(BaseModel):
+    date: date
+    startTime: str
+    endTime: str
+    scheduleId: int
+    roomIds: List[int]
+    assistantIds: List[int]
+
+
+@router.post("/check-conflicts", summary="Check scheduling conflicts", description="Check for conflicts with rooms, assistants, and teacher availability")
+@inject
+async def check_conflicts(
+    conflict_data: ConflictCheckRequest, 
+    service: IScheduleService = Depends(Provide[Container.schedule_service])
+):
+    """Check for scheduling conflicts.
+    
+    Args:
+        conflict_data (ConflictCheckRequest): Data for conflict checking
+        
+    Returns:
+        Dict: Conflict information including roomConflicts, assistantConflicts, and teacherConflicts
+    """
+    # Convert string times to actual time objects if needed by the service
+    result = await service.check_conflicts(
+        schedule_id=conflict_data.scheduleId,
+        date=conflict_data.date,
+        start_time=conflict_data.startTime,
+        end_time=conflict_data.endTime,
+        room_ids=conflict_data.roomIds,
+        assistant_ids=conflict_data.assistantIds
+    )
+    return result

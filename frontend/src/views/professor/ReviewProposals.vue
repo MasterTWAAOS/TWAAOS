@@ -38,7 +38,7 @@
             <InputText 
               id="search" 
               v-model="filters.search" 
-              placeholder="Caută după denumire sau cod"
+              placeholder="Caută după codul disciplinei sau al sălii"
               class="w-full"
             />
           </div>
@@ -66,14 +66,18 @@
         </Column>
         <Column field="group.name" header="Grupă" :sortable="true" style="width: 10%">
           <template #body="slotProps">
-            <Chip :label="slotProps.data.group.name" />
+            <!-- Debug the group data -->
+            <div style="display: none;">{{ console.log('[UI Debug] Group data:', slotProps.data) }}</div>
+            <div>{{ slotProps.data.group.name }}</div>
           </template>
         </Column>
         <Column field="proposedDate" header="Dată Propusă" :sortable="true" style="width: 15%">
           <template #body="slotProps">
+            <!-- Debug date fields -->
+            <div style="display: none;">{{ console.log('[Date Debug]', slotProps.data) }}</div>
             <div class="proposed-date">
-              <div class="date">{{ formatDate(slotProps.data.proposedDate) }}</div>
-              <div class="time">{{ formatTime(slotProps.data.proposedTimeStart) }} - {{ formatTime(slotProps.data.proposedTimeEnd) }}</div>
+              <div class="date">{{ formatDate(slotProps.data.proposedDate || slotProps.data.date || slotProps.data.examDate) }}</div>
+              <div class="time">{{ formatTime(slotProps.data.proposedTimeStart || slotProps.data.startTime) }} - {{ formatTime(slotProps.data.proposedTimeEnd || slotProps.data.endTime) }}</div>
             </div>
           </template>
         </Column>
@@ -89,14 +93,14 @@
                 icon="pi pi-check" 
                 class="p-button-success p-button-sm p-mr-1" 
                 v-tooltip.top="'Aprobă propunerea'"
-                v-if="slotProps.data.status === 'pending'"
+                v-if="slotProps.data.status === 'proposed'"
                 @click="openApproveDialog(slotProps.data)"
               />
               <Button 
                 icon="pi pi-times" 
                 class="p-button-danger p-button-sm p-mr-1" 
                 v-tooltip.top="'Respinge propunerea'"
-                v-if="slotProps.data.status === 'pending'"
+                v-if="slotProps.data.status === 'proposed'"
                 @click="openRejectDialog(slotProps.data)"
               />
               <Button 
@@ -180,9 +184,9 @@
                 :options="assistantOptions" 
                 optionLabel="name" 
                 placeholder="Selectați asistenții"
+                :filter="false"
                 display="chip"
                 class="w-full"
-                :filter="true"
               />
               <small v-if="dialogs.approve.validationErrors.assistants" class="p-error">{{ dialogs.approve.validationErrors.assistants }}</small>
             </div>
@@ -310,7 +314,7 @@
             <h3>Informații Suplimentare</h3>
             <div class="detail-item">
               <span class="detail-label">Propus de:</span>
-              <span class="detail-value">{{ dialogs.details.proposal.submittedBy.name }}</span>
+              <span class="detail-value">{{ dialogs.details.proposal.submittedBy?.name || 'Student Group Leader' }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">Data Propunerii:</span>
@@ -345,18 +349,29 @@
 </template>
 
 <script>
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useStore } from 'vuex'
-import axios from 'axios'
+import { useRouter } from 'vue-router'
+
+// Import services instead of direct API calls
+import RoomService from '../../services/room.service'
+import ScheduleService from '../../services/schedule.service'
+import UserService from '../../services/user.service'
+import SubjectService from '../../services/subject.service'
+import GroupService from '../../services/group.service'
+import apiClient from '@/services/api.service.js'
+
+// PrimeVue components
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Dropdown from 'primevue/dropdown'
 import InputText from 'primevue/inputtext'
-import Chip from 'primevue/chip'
-import Tag from 'primevue/tag'
-import Dialog from 'primevue/dialog'
-import Textarea from 'primevue/textarea'
 import Button from 'primevue/button'
+import Dialog from 'primevue/dialog'
+import MultiSelect from 'primevue/multiselect'
+import Textarea from 'primevue/textarea'
+import Tag from 'primevue/tag'
+import Message from 'primevue/message'
 
 export default {
   name: 'ReviewProposalsView',
@@ -365,11 +380,12 @@ export default {
     Column,
     Dropdown,
     InputText,
-    Chip,
-    Tag,
+    Button,
     Dialog,
+    MultiSelect,
     Textarea,
-    Button
+    Tag,
+    Message
   },
   setup() {
     const store = useStore()
@@ -377,50 +393,11 @@ export default {
     const proposals = ref([])
     const scheduledExams = ref([])
     
-    // Load available rooms for approval dialog
-    const loadRooms = async () => {
-      try {
-        roomsLoading.value = true
-        
-        // Call the API to get all available rooms
-        const response = await axios.get(ROOMS_ENDPOINT)
-        
-        // Transform the data to match our component's expected format
-        availableRooms.value = response.data.map(room => ({
-          value: room.id,
-          name: room.name,
-          shortName: room.shortName,
-          buildingName: room.buildingName,
-          capacity: room.capacity,
-          computers: room.computers
-        }))
-      } catch (error) {
-        console.error(error)
-      } finally {
-        roomsLoading.value = false
-      }
-    }
-    
-    // Load available assistants for approval dialog (CD users who can assist with exams)
-    const loadAssistants = async () => {
-      try {
-        assistantsLoading.value = true
-        
-        // Get CD users who can serve as assistants
-        const response = await axios.get(`${USERS_ENDPOINT}?role=CD`)
-        
-        // Transform the data to match our component's expected format
-        availableAssistants.value = response.data.map(assistant => ({
-          value: assistant.id,
-          name: `${assistant.firstName} ${assistant.lastName}`,
-          department: assistant.department
-        }))
-      } catch (error) {
-        console.error(error)
-      } finally {
-        assistantsLoading.value = false
-      }
-    }
+    // Caches for reducing API calls
+    const subjectsCache = ref({}) // Cache by ID
+    const groupsCache = ref({})   // Cache by ID
+    const roomsCache = ref({})    // Cache by ID
+    const usersCache = ref({})    // Cache by role and ID
     
     // Filters
     const filters = reactive({
@@ -431,21 +408,12 @@ export default {
     
     // Filter options
     const statusOptions = ref([
-      { name: 'În așteptare', value: 'pending' },
+      { name: 'Propuse', value: 'proposed' },
       { name: 'Aprobate', value: 'approved' },
       { name: 'Respinse', value: 'rejected' }
     ])
     
-    const groupOptions = ref([
-      { name: 'CTI1', value: 'CTI1' },
-      { name: 'CTI2', value: 'CTI2' },
-      { name: 'CTI3', value: 'CTI3' },
-      { name: 'CTI4', value: 'CTI4' },
-      { name: 'AITC1', value: 'AITC1' },
-      { name: 'AITC2', value: 'AITC2' },
-      { name: 'AITC3', value: 'AITC3' }
-    ])
-    
+    const groupOptions = ref([])
     const roomOptions = ref([])
     const availableRooms = ref([])
     const roomsLoading = ref(false)
@@ -469,15 +437,6 @@ export default {
       { label: '18:00', value: '18:00' },
       { label: '19:00', value: '19:00' },
       { label: '20:00', value: '20:00' }
-    ])
-    
-    // Assistant options
-    const assistantOptions = ref([
-      { id: 1, name: 'Asist. Maria Ionescu', department: 'Calculatoare' },
-      { id: 2, name: 'Asist. Ion Popescu', department: 'Calculatoare' },
-      { id: 3, name: 'Asist. Elena Vasilescu', department: 'Automatică' },
-      { id: 4, name: 'Asist. Andrei Georgescu', department: 'Calculatoare' },
-      { id: 5, name: 'Asist. Cristina Dumitrescu', department: 'Automatică' }
     ])
     
     // Dialog states
@@ -523,13 +482,17 @@ export default {
           return false
         }
         
-        // Filter by search term
+        // Filter by search term - search by subject shortName or room shortName
         if (filters.search) {
           const searchTerm = filters.search.toLowerCase()
-          const subjectName = proposal.subject.name.toLowerCase()
-          const subjectCode = proposal.subject.code.toLowerCase()
+          const subject = subjectsCache.value[proposal.subject.id]
+          const room = proposal.room ? roomsCache.value[proposal.room.value] : null
           
-          if (!subjectName.includes(searchTerm) && !subjectCode.includes(searchTerm)) {
+          const subjectShortName = subject?.shortName?.toLowerCase() || ''
+          const roomShortName = room?.shortName?.toLowerCase() || ''
+          
+          // Search in subject shortName or room shortName
+          if (!subjectShortName.includes(searchTerm) && !roomShortName.includes(searchTerm)) {
             return false
           }
         }
@@ -541,6 +504,19 @@ export default {
     // Check if approve form is valid
     const isApproveFormValid = computed(() => {
       const { rooms, startTime, endTime, assistants, validationErrors } = dialogs.approve
+      
+      // Debug values to help identify the issue
+      console.log('[Debug] Form validation values:', {
+        hasRooms: rooms && rooms.length > 0,
+        hasTime: Boolean(startTime && endTime),
+        hasAssistants: assistants && assistants.length > 0,
+        validationErrors,
+        rooms,
+        startTime,
+        endTime,
+        assistants
+      })
+      
       return (
         rooms && rooms.length > 0 &&
         startTime && endTime &&
@@ -551,29 +527,55 @@ export default {
       )
     })
     
-    // Format functions
+    // Format functions with more robust error handling
     const formatDate = (dateString) => {
-      const date = new Date(dateString)
-      return new Intl.DateTimeFormat('ro-RO', { 
-        day: '2-digit', 
-        month: 'long', 
-        year: 'numeric' 
-      }).format(date)
+      // If no date, show a placeholder
+      if (!dateString) {
+        return 'Dată neprecizată'
+      }
+      
+      try {
+        const date = new Date(dateString)
+        // Check if date is valid
+        if (isNaN(date.getTime())) {
+          console.warn('Invalid date value:', dateString)
+          return 'Dată invalidă'
+        }
+        
+        return new Intl.DateTimeFormat('ro-RO', { 
+          day: '2-digit', 
+          month: 'long', 
+          year: 'numeric' 
+        }).format(date)
+      } catch (error) {
+        console.error('Error formatting date:', dateString, error)
+        return 'Eroare formatare dată'
+      }
     }
     
     const formatTime = (timeString) => {
-      return timeString
+      // Return the time string as is but with a placeholder for missing values
+      return timeString || '--:--'
     }
     
     const formatDatetime = (dateString) => {
-      const date = new Date(dateString)
-      return new Intl.DateTimeFormat('ro-RO', { 
-        day: '2-digit', 
-        month: 'short', 
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }).format(date)
+      if (!dateString) return 'N/A'
+      
+      try {
+        const date = new Date(dateString)
+        if (isNaN(date.getTime())) return 'N/A' // Check if date is invalid
+        
+        return new Intl.DateTimeFormat('ro-RO', { 
+          day: '2-digit', 
+          month: 'short', 
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }).format(date)
+      } catch (error) {
+        console.error('Error formatting date:', error)
+        return 'N/A'
+      }
     }
     
     // Status helpers
@@ -615,92 +617,107 @@ export default {
       
       if (endHour - startHour < 1) {
         dialogs.approve.validationErrors.timeInterval = 'Durata examenului trebuie să fie de minim 1 oră'
+      } else {
+        // Clear the error if the interval is now valid
+        dialogs.approve.validationErrors.timeInterval = null
       }
       
       // After validation passes, check for conflicts
       checkForTimeConflicts()
     }
     
-    const checkForRoomConflicts = () => {
-      const { rooms, startTime, endTime, proposal } = dialogs.approve
-      // Reset room conflicts
+    const closeDialogs = () => {
+      dialogs.approve.visible = false
+      dialogs.reject.visible = false
+      dialogs.details.visible = false
+    }
+    
+    // Get scheduled exam for conflict check
+    const getScheduledExam = (scheduleId) => {
+      return scheduledExams.value.find(exam => exam.id === scheduleId)
+    }
+    
+    // Integrated conflict check that calls the backend API to verify conflicts
+    const checkForConflicts = async () => {
+      const { rooms, assistants, startTime, endTime, proposal } = dialogs.approve
       const conflicts = []
       
-      // Check if rooms are selected and times are set
-      if (!rooms || rooms.length === 0 || !startTime || !endTime) return
+      // Check if we have all required data before checking conflicts
+      if (!rooms || rooms.length === 0 || !assistants || assistants.length === 0 || !startTime || !endTime || !proposal) {
+        return conflicts
+      }
       
-      // In a real implementation, we would check against the database of scheduled exams
-      // Here we're using the mock data for demonstration
-      scheduledExams.value.forEach(exam => {
-        // Skip if it's the same proposal
-        if (proposal && exam.id === proposal.id) return
+      try {
+        // Prepare conflict check data
+        const conflictCheckData = {
+          date: proposal.proposedDate,
+          startTime: startTime,
+          endTime: endTime,
+          roomIds: rooms.map(r => r.value),
+          assistantIds: assistants.map(a => a.value),
+          scheduleId: proposal.id  // To exclude the current schedule from conflict checks
+        }
         
-        // Check if date is the same
-        if (exam.date !== proposal.proposedDate) return
+        // Call backend through store to check for conflicts
+        const conflictData = await store.dispatch('schedules/checkConflicts', conflictCheckData)
         
-        // Check for time overlap
-        const examStart = exam.startTime
-        const examEnd = exam.endTime
-        
-        if ((startTime < examEnd && endTime > examStart)) {
-          // Check if any selected room is already in use
-          const conflictingRooms = rooms.filter(r => 
-            exam.rooms.some(er => er.value === r.value)
-          )
-          
-          if (conflictingRooms.length > 0) {
-            const roomNames = conflictingRooms.map(r => r.name).join(', ')
-            conflicts.push(`Sala(sălile) ${roomNames} este/sunt deja rezervată(e) între ${examStart} - ${examEnd}`)
+        // Process room conflicts
+        if (conflictData.roomConflicts && conflictData.roomConflicts.length > 0) {
+          for (const conflict of conflictData.roomConflicts) {
+            // Try to get subject name from cache if available
+            let subjectName = conflict.subjectName
+            if (!subjectName && conflict.subjectId && subjectsCache.value[conflict.subjectId]) {
+              subjectName = subjectsCache.value[conflict.subjectId].name
+            }
+            conflicts.push(`Sala ${conflict.roomName} este deja rezervată între ${conflict.startTime} - ${conflict.endTime} pentru ${subjectName}`)
           }
         }
-      })
+        
+        // Process assistant conflicts
+        if (conflictData.assistantConflicts && conflictData.assistantConflicts.length > 0) {
+          for (const conflict of conflictData.assistantConflicts) {
+            // Try to get subject name from cache if available
+            let subjectName = conflict.subjectName
+            if (!subjectName && conflict.subjectId && subjectsCache.value[conflict.subjectId]) {
+              subjectName = subjectsCache.value[conflict.subjectId].name
+            }
+            conflicts.push(`Asistentul ${conflict.assistantName} este deja alocat între ${conflict.startTime} - ${conflict.endTime} pentru ${subjectName}`)
+          }
+        }
+        
+        // Process teacher conflicts
+        if (conflictData.teacherConflicts && conflictData.teacherConflicts.length > 0) {
+          for (const conflict of conflictData.teacherConflicts) {
+            // Try to get subject name from cache if available
+            let subjectName = conflict.subjectName
+            if (!subjectName && conflict.subjectId && subjectsCache.value[conflict.subjectId]) {
+              subjectName = subjectsCache.value[conflict.subjectId].name
+            }
+            conflicts.push(`Dvs. aveți deja programat un examen între ${conflict.startTime} - ${conflict.endTime} pentru ${subjectName}`)
+          }
+        }
+      } catch (error) {
+        console.error('Error checking for conflicts:', error)
+        // Add a generic error in case of backend failure
+        conflicts.push('Nu s-a putut verifica existența potențialelor conflicte. Verificați manual programarea.')
+      }
       
       return conflicts
     }
     
-    const checkForAssistantConflicts = () => {
-      const { assistants, startTime, endTime, proposal } = dialogs.approve
-      const conflicts = []
+    const checkForTimeConflicts = async () => {
+      // Clear existing conflicts
+      dialogs.approve.conflicts = []
       
-      // Check if assistants are selected and times are set
-      if (!assistants || assistants.length === 0 || !startTime || !endTime) return conflicts
+      // Get all conflicts from the backend
+      const conflicts = await checkForConflicts()
       
-      // In a real implementation, we would check against the database of scheduled exams
-      scheduledExams.value.forEach(exam => {
-        // Skip if it's the same proposal
-        if (proposal && exam.id === proposal.id) return
-        
-        // Check if date is the same
-        if (exam.date !== proposal.proposedDate) return
-        
-        // Check for time overlap
-        const examStart = exam.startTime
-        const examEnd = exam.endTime
-        
-        if ((startTime < examEnd && endTime > examStart)) {
-          // Check if any selected assistant is already assigned
-          const conflictingAssistants = assistants.filter(a => 
-            exam.assistants.some(ea => ea.id === a.id)
-          )
-          
-          if (conflictingAssistants.length > 0) {
-            const assistantNames = conflictingAssistants.map(a => a.name).join(', ')
-            conflicts.push(`Asistentul/Asistenții ${assistantNames} este/sunt deja alocat(ți) între ${examStart} - ${examEnd}`)
-          }
-        }
-      })
-      
-      return conflicts
+      // Update the conflicts in the dialog
+      if (conflicts && conflicts.length > 0) {
+        dialogs.approve.conflicts = conflicts
+      }
     }
-    
-    const checkForTimeConflicts = () => {
-      // Combine all conflict checks
-      dialogs.approve.conflicts = [
-        ...checkForRoomConflicts() || [],
-        ...checkForAssistantConflicts() || []
-      ]
-    }
-    
+
     // Dialog actions
     const openApproveDialog = async (proposal) => {
       // Reset dialog state
@@ -721,8 +738,17 @@ export default {
       try {
         // If proposal has room requirements, pre-select rooms that match
         if (proposal.roomRequirements) {
+          // Ensure rooms are loaded
+          if (availableRooms.value.length === 0 && Object.keys(roomsCache.value).length === 0) {
+            await loadRooms()
+          }
+          
+          // Use cached rooms when possible
+          const roomsToFilter = availableRooms.value.length > 0 ? 
+            availableRooms.value : Object.values(roomsCache.value)
+            
           // Find rooms that match the requirements
-          const matchingRooms = availableRooms.value.filter(room => 
+          const matchingRooms = roomsToFilter.filter(room => 
             // For example, if requirement includes 'computers', filter rooms with computers
             (proposal.roomRequirements.toLowerCase().includes('calculatoare') && room.computers) ||
             // If capacity is mentioned, filter by capacity
@@ -734,18 +760,22 @@ export default {
           }
         }
         
-        // Load available assistants if not already loaded
-        if (availableAssistants.value.length === 0) {
+        // Use the more efficient subject-specific assistants loading
+        if (proposal.subject && proposal.subject.id) {
+          // Load assistants specific to this subject instead of all CD users
+          await loadAssistantsBySubject(proposal.subject.id)
+        } else if (availableAssistants.value.length === 0) {
+          // Fallback to loading all assistants if no subject ID available
           await loadAssistants()
         }
         
         // Check if subject has previous assigned assistants and pre-select them
         if (proposal.subject && proposal.subject.id) {
           try {
-            const subjectResponse = await axios.get(`${API_BASE_URL}/subjects/${proposal.subject.id}`)
-            const subjectData = subjectResponse.data
+            // Use the cached subject data when possible
+            const subjectData = await getSubjectById(proposal.subject.id)
             
-            if (subjectData.assistantIds && subjectData.assistantIds.length > 0) {
+            if (subjectData && subjectData.assistantIds && subjectData.assistantIds.length > 0) {
               // Find matching assistants from our available list
               const preSelectedAssistants = availableAssistants.value.filter(assistant => 
                 subjectData.assistantIds.includes(assistant.value)
@@ -779,8 +809,6 @@ export default {
     }
     
     const approveProposal = async () => {
-      const { rooms, assistants, startTime, endTime } = dialogs.approve
-      
       // Reset validation errors
       dialogs.approve.validationErrors = {
         rooms: null,
@@ -791,17 +819,17 @@ export default {
       // Validate required fields
       let hasErrors = false
       
-      if (!rooms || rooms.length === 0) {
+      if (!dialogs.approve.rooms || dialogs.approve.rooms.length === 0) {
         dialogs.approve.validationErrors.rooms = 'Selectați cel puțin o sală pentru examen'
         hasErrors = true
       }
       
-      if (!assistants || assistants.length === 0) {
+      if (!dialogs.approve.assistants || dialogs.approve.assistants.length === 0) {
         dialogs.approve.validationErrors.assistants = 'Selectați cel puțin un asistent pentru examen'
         hasErrors = true
       }
       
-      if (!startTime || !endTime) {
+      if (!dialogs.approve.startTime || !dialogs.approve.endTime) {
         dialogs.approve.validationErrors.timeInterval = 'Selectați intervalul de timp pentru examen'
         hasErrors = true
       } else {
@@ -822,8 +850,8 @@ export default {
       }
       
       // Check for conflicts
-      checkForTimeConflicts()
-      if (dialogs.approve.conflicts.length > 0) {
+      await checkForConflicts()
+      if (dialogs.approve.conflicts && dialogs.approve.conflicts.length > 0) {
         // Show warning but allow to proceed
         store.dispatch('notifications/showNotification', {
           severity: 'warn',
@@ -836,68 +864,38 @@ export default {
       try {
         dialogs.approve.loading = true
         
-        // Prepare data for API call
+        // Prepare approval data for the store action
         const approvalData = {
-          scheduleId: dialogs.approve.proposal.id,
-          status: 'approved',
-          roomIds: dialogs.approve.rooms.map(r => r.value),
-          assistantIds: dialogs.approve.assistants.map(a => a.id),
-          startTime: dialogs.approve.startTime,
-          endTime: dialogs.approve.endTime,
-          comments: dialogs.approve.comments || null
-        }
-        
-        // Prepare the data according to the ScheduleUpdate DTO structure
-        const updateData = {
-          status: 'approved',
-          roomId: dialogs.approve.rooms[0]?.value, // Primary room
-          startTime: dialogs.approve.startTime,
-          endTime: dialogs.approve.endTime,
+          status: 'approved', // Explicitly set status to approved from proposed
+          roomId: dialogs.approve.rooms[0].value, // Primary room
           additionalRoomIds: dialogs.approve.rooms.length > 1 
             ? dialogs.approve.rooms.slice(1).map(r => r.value) 
             : [],
           assistantIds: dialogs.approve.assistants.map(a => a.value),
-          comments: dialogs.approve.comments || null,
+          startTime: dialogs.approve.startTime,
+          endTime: dialogs.approve.endTime,
+          comments: dialogs.approve.comments || '',
           sendEmail: false // No email for approval
         }
         
-        console.log('Approving proposal with data:', updateData)
+        console.log('Approving proposal with data:', approvalData)
         
-        // Call the backend API to update schedule
-        const response = await axios.put(`${SCHEDULES_ENDPOINT}/${dialogs.approve.proposal.id}`, updateData)
-        const updatedSchedule = response.data
+        // Use store module to approve the proposal
+        const updatedSchedule = await store.dispatch('schedules/approveProposal', {
+          scheduleId: dialogs.approve.proposal.id,
+          approvalData: approvalData
+        })
         
-        // Get current user info for the reviewer details
-        const currentUserResponse = await axios.get(`${API_BASE_URL}/auth/me`)
-        const currentUser = currentUserResponse.data
+        // Get current user from store
+        const currentUser = store.getters['auth/user']
         
         // Update local data
         const index = proposals.value.findIndex(p => p.id === dialogs.approve.proposal.id)
         if (index !== -1) {
-          // Get the room info for display
-          const roomResponse = await axios.get(`${ROOMS_ENDPOINT}/${updatedSchedule.roomId}`)
+          // Use the updated schedule data returned from the API
           const primaryRoom = {
-            value: roomResponse.data.id,
-            name: roomResponse.data.name
-          }
-          
-          // Get assistant info for all assistant IDs
-          const assistantsList = []
-          if (updateData.assistantIds && updateData.assistantIds.length > 0) {
-            // In a production app, we would use Promise.all with multiple requests
-            // or have a batch endpoint to get all users at once
-            for (const assistantId of updateData.assistantIds) {
-              try {
-                const assistantResponse = await axios.get(`${USERS_ENDPOINT}/${assistantId}`)
-                assistantsList.push({
-                  id: assistantResponse.data.id,
-                  name: `${assistantResponse.data.firstName} ${assistantResponse.data.lastName}`,
-                  department: assistantResponse.data.department
-                })
-              } catch (err) {
-                console.error(`Error fetching assistant with ID ${assistantId}:`, err)
-              }
-            }
+            value: updatedSchedule.roomId,
+            name: dialogs.approve.rooms[0].name
           }
           
           // Update the local proposal with the new data
@@ -905,15 +903,15 @@ export default {
             ...proposals.value[index],
             status: 'approved',
             reviewedBy: { 
-              name: `${currentUser.firstName} ${currentUser.lastName}`, 
+              name: currentUser.firstName + ' ' + currentUser.lastName, 
               email: currentUser.email 
             },
             reviewDate: new Date().toISOString(),
-            comments: updatedSchedule.comments || dialogs.approve.comments || null,
+            comments: updatedSchedule.comments || dialogs.approve.comments || '',
             room: primaryRoom,
             startTime: updatedSchedule.startTime || dialogs.approve.startTime,
             endTime: updatedSchedule.endTime || dialogs.approve.endTime,
-            assistants: assistantsList
+            assistants: dialogs.approve.assistants
           }
           
           // Also add to scheduled exams
@@ -925,12 +923,9 @@ export default {
             startTime: updatedSchedule.startTime || dialogs.approve.startTime,
             endTime: updatedSchedule.endTime || dialogs.approve.endTime,
             room: primaryRoom,
-            assistants: assistantsList
+            assistants: dialogs.approve.assistants
           })
         }
-        
-        // Refresh the proposals list to make sure we have the latest data
-        loadProposals()
         
         // Show success notification
         store.dispatch('notifications/showNotification', {
@@ -942,6 +937,9 @@ export default {
         
         // Close dialog
         dialogs.approve.visible = false
+        
+        // Refresh proposals list to ensure we have the latest data
+        loadProposals()
       } catch (error) {
         // Show error notification
         store.dispatch('notifications/showNotification', {
@@ -969,22 +967,21 @@ export default {
       try {
         dialogs.reject.loading = true
         
-        // Prepare the data according to the ScheduleUpdate DTO structure
-        const updateData = {
-          status: 'rejected',
+        // Prepare rejection data for the store action
+        const rejectionData = {
+          status: 'rejected', // Explicitly set status to rejected from proposed
           reason: dialogs.reject.reason,
-          sendEmail: true // This will trigger automatic email to SG
+          sendEmail: true
         }
         
-        console.log('Rejecting proposal with data:', updateData)
+        // Use store module to reject the proposal
+        const updatedSchedule = await store.dispatch('schedules/rejectProposal', {
+          scheduleId: dialogs.reject.proposal.id,
+          rejectionData: rejectionData
+        })
         
-        // Call the backend API to update schedule
-        const response = await axios.put(`${SCHEDULES_ENDPOINT}/${dialogs.reject.proposal.id}`, updateData)
-        const updatedSchedule = response.data
-        
-        // Get current user info for the reviewer details
-        const currentUserResponse = await axios.get(`${API_BASE_URL}/auth/me`)
-        const currentUser = currentUserResponse.data
+        // Get current user from store
+        const currentUser = store.getters['auth/user']
         
         // Update local data based on API response
         const index = proposals.value.findIndex(p => p.id === dialogs.reject.proposal.id)
@@ -993,22 +990,19 @@ export default {
             ...proposals.value[index],
             status: 'rejected',
             reviewedBy: { 
-              name: `${currentUser.firstName} ${currentUser.lastName}`, 
+              name: currentUser.firstName + ' ' + currentUser.lastName, 
               email: currentUser.email 
             },
-            reviewDate: new Date().toISOString(),
-            rejectionReason: updateData.reason
+            rejectionReason: dialogs.reject.reason,
+            reviewDate: new Date().toISOString()
           }
         }
-        
-        // Refresh the proposals list to ensure we have the latest data
-        loadProposals()
         
         // Show success notification
         store.dispatch('notifications/showNotification', {
           severity: 'success',
-          summary: 'Propunere Respinsă',
-          detail: 'Propunerea a fost respinsă cu succes. Un email a fost trimis către șeful de grupă.',
+          summary: 'Propunere respinsă',
+          detail: 'Propunerea a fost respinsă și notificarea a fost trimisă',
           life: 3000
         })
         
@@ -1018,7 +1012,7 @@ export default {
         // Show error notification
         store.dispatch('notifications/showNotification', {
           severity: 'error',
-          summary: 'Eroare',
+          summary: 'Eroare', 
           detail: error.message || 'A apărut o eroare la respingerea propunerii',
           life: 5000
         })
@@ -1027,105 +1021,264 @@ export default {
       }
     }
     
-    // API endpoints
-    const API_BASE_URL = '/api'
-    const SCHEDULES_ENDPOINT = `${API_BASE_URL}/schedules`
-    const ROOMS_ENDPOINT = `${API_BASE_URL}/rooms`
-    const USERS_ENDPOINT = `${API_BASE_URL}/users`
-    // Note: assistants are CD users who can assist with exams
-    
     // Get schedules that belong to the CD's subjects
     const loadProposals = async () => {
       try {
         loading.value = true
         
-        // Get current user info to identify CD's subjects
-        const currentUserResponse = await axios.get(`${API_BASE_URL}/auth/me`)
-        const currentUserId = currentUserResponse.data.id
+        // Use the store to fetch CD proposals - now using the optimized teacher endpoint
+        // that includes group information directly
+        const cdSchedules = await store.dispatch('schedules/fetchCDProposals')
         
-        // Get all schedules with status 'proposed'
-        const schedulesResponse = await axios.get(`${SCHEDULES_ENDPOINT}?status=proposed`)
-        let allSchedules = schedulesResponse.data
+        // Debug the raw response from API
+        console.log('[API Debug] Raw schedule data:', cdSchedules)
         
-        // For CD users, we need to filter to only show schedules for subjects where they are the teacher
-        // Get subjects where the current user is the teacher
-        const subjectsResponse = await axios.get(`${API_BASE_URL}/subjects?teacherId=${currentUserId}`)
-        const cdSubjects = subjectsResponse.data
-        const cdSubjectIds = cdSubjects.map(subject => subject.id)
+        // Extract all subject IDs from schedules to batch load them
+        const subjectIds = cdSchedules.map(schedule => schedule.subjectId)
+        await loadSubjectsByIds(subjectIds)
         
-        // Filter schedules to only include those for the CD's subjects
-        const cdSchedules = allSchedules.filter(schedule => 
-          cdSubjectIds.includes(schedule.subjectId)
-        )
+        // Collect room IDs for batch loading
+        const roomIds = new Set()
         
-        // Transform the data to match our component's expected format
+        // First get all subjects' data to ensure we have complete information
+        const allSubjectsResponse = await SubjectService.getAllSubjects()
+        
+        // Cache all subjects first
+        allSubjectsResponse.forEach(subject => {
+          subjectsCache.value[subject.id] = {
+            id: subject.id,
+            name: subject.name,
+            code: subject.shortName || '',
+            groupId: subject.groupId || null
+          }
+        })
+        
+        // Process each schedule to prepare data dependencies
+        for (const schedule of cdSchedules) {
+          // Collect room IDs for batch loading
+          if (schedule.roomId) {
+            roomIds.add(schedule.roomId)
+          }
+        }
+        
+        // Batch load any rooms that haven't been cached yet
+        for (const roomId of roomIds) {
+          if (!roomsCache.value[roomId]) {
+            await getRoomById(roomId) // This will cache the room
+          }
+        }
+        
+        // Pre-load SG users for all groups using direct API call
+        try {
+          const sgResponse = await apiClient.get('/users', { params: { role: 'SG' } })
+          
+          // Initialize the roles cache if needed
+          if (!usersCache.value['roles']) {
+            usersCache.value['roles'] = {}
+          }
+          
+          // Cache all SG users
+          usersCache.value['roles']['SG'] = sgResponse.data
+          
+          // Also cache individual users
+          if (sgResponse.data && Array.isArray(sgResponse.data)) {
+            sgResponse.data.forEach(user => {
+              usersCache.value[user.id] = {
+                id: user.id,
+                name: `${user.firstName} ${user.lastName}`,
+                email: user.email
+              }
+            })
+          }
+        } catch (error) {
+          console.error('Error pre-loading SG users:', error)
+        }
+        
+        // Transform the data to match our component's expected format with minimal API calls
         proposals.value = await Promise.all(cdSchedules.map(async schedule => {
-          // Get subject details
-          const subjectResponse = await axios.get(`${API_BASE_URL}/subjects/${schedule.subjectId}`)
-          const subject = subjectResponse.data
+          // Get subject details from cache
+          const subject = await getSubjectById(schedule.subjectId)
+          if (!subject) {
+            console.error(`Failed to get subject for proposal ${schedule.id}`)
+            return null
+          }
           
-          // Get group details
-          const groupResponse = await axios.get(`${API_BASE_URL}/groups/${subject.groupId}`)
-          const group = groupResponse.data
+          // Use group info directly from the API response if available, or fetch if needed
+          // Get group information from the API response or from the subject
+          console.log(`[DEBUG] Processing group for schedule ${schedule.id}, subject ${schedule.subjectId}:`, {
+            hasGroupId: !!schedule.groupId,
+            groupId: schedule.groupId,
+            hasGroupName: !!schedule.groupName,
+            groupName: schedule.groupName,
+            subjectGroupId: subject?.groupId
+          })
           
-          // Get room details if available
+          let group
+          // Check if group info is directly available in the schedule (from our enhanced endpoint)
+          if (schedule.groupId && schedule.groupName) {
+            console.log(`[DEBUG] Using group directly from schedule response:`, { id: schedule.groupId, name: schedule.groupName })
+            group = { 
+              id: schedule.groupId, 
+              name: schedule.groupName || `Grupa ${schedule.groupId}` // Ensure name is not empty
+            }
+            // Also cache this group for future reference
+            if (!groupsCache.value[schedule.groupId]) {
+              groupsCache.value[schedule.groupId] = group
+            }
+          } else if (subject && subject.groupId) {
+            // Fallback to getting group info from subject if not in API response
+            console.log(`[DEBUG] Fallback: Getting group from subject.groupId:`, subject.groupId)
+            group = await getGroupById(subject.groupId)
+            console.log(`[DEBUG] Result from getGroupById:`, group)
+          } else {
+            // Last resort fallback
+            console.log(`[DEBUG] No group info available, using default fallback`)
+            group = { id: null, name: 'Fără grupă' }
+          }
+          
+          // Get room details if available (from cache)
           let room = null
           if (schedule.roomId) {
-            const roomResponse = await axios.get(`${ROOMS_ENDPOINT}/${schedule.roomId}`)
-            room = {
-              value: roomResponse.data.id,
-              name: roomResponse.data.name
+            room = await getRoomById(schedule.roomId)
+          }
+          
+          // Get proposer information (SG) checking all possible field sources
+          let proposedBy = { name: 'Student Group Leader', email: '' }
+          
+          // Check if schedule already has submittedBy data directly from the backend
+          if (schedule.submittedBy && (schedule.submittedBy.firstName || schedule.submittedBy.name)) {
+            // Use data directly from the backend response
+            proposedBy = {
+              name: schedule.submittedBy.name || `${schedule.submittedBy.firstName || ''} ${schedule.submittedBy.lastName || ''}`.trim(),
+              email: schedule.submittedBy.email || ''
+            }
+            
+            console.log('[Debug] Found submittedBy directly in schedule:', proposedBy)
+          } else if (schedule.proposedBy) {
+            // Some API responses might have proposedBy directly
+            proposedBy = {
+              name: schedule.proposedBy.name || `${schedule.proposedBy.firstName || ''} ${schedule.proposedBy.lastName || ''}`.trim(),
+              email: schedule.proposedBy.email || ''
+            }
+            
+            console.log('[Debug] Found proposedBy directly in schedule:', proposedBy)
+          } else {
+            // Fallback to looking up the SG for this group
+            try {
+              if (group && group.id && group.id > 0) {
+                // Only make the API call if we have a valid group ID
+                const response = await apiClient.get('/users', { 
+                  params: { role: 'SG', groupId: group.id }
+                })
+                const sgUsers = response.data || []
+                
+                if (sgUsers && sgUsers.length > 0) {
+                  const sg = sgUsers[0]
+                  proposedBy = {
+                    name: `${sg.firstName || ''} ${sg.lastName || ''}`.trim(),
+                    email: sg.email || ''
+                  }
+                  
+                  console.log('[Debug] Found SG user from API call:', proposedBy)
+                  
+                  // Cache for future use
+                  if (!usersCache.value['roles']) {
+                    usersCache.value['roles'] = {}
+                  }
+                  
+                  if (!usersCache.value['roles']['SG']) {
+                    usersCache.value['roles']['SG'] = []
+                  }
+                  
+                  // Add only if not already cached
+                  sgUsers.forEach(user => {
+                    if (!usersCache.value['roles']['SG'].some(u => u.id === user.id)) {
+                      usersCache.value['roles']['SG'].push(user)
+                    }
+                  })
+                }
+              }
+            } catch (error) {
+              console.error('Error getting SG user:', error)
+              // Keep default in case of error
+              proposedBy = { name: 'Student Group Leader', email: '' }
             }
           }
           
-          // Get proposer information (SG)
-          let proposedBy = { name: 'Student Group Leader', email: '' }
-          const sgUsersResponse = await axios.get(`${USERS_ENDPOINT}?role=SG&groupId=${group.id}`)
-          if (sgUsersResponse.data.length > 0) {
-            const sg = sgUsersResponse.data[0]
-            proposedBy = { 
-              name: sg.name || 'Student Group Leader', 
-              email: sg.email || '' 
-            }
+          // Ensure proposedBy has a name even if it's empty
+          if (!proposedBy.name || proposedBy.name.trim() === '') {
+            proposedBy.name = 'Student Group Leader'
           }
           
           // Get reviewer information if applicable
           let reviewedBy = null
           if (schedule.status === 'approved' || schedule.status === 'rejected') {
+            const currentUser = store.getters['auth/user']
             reviewedBy = {
-              name: currentUserResponse.data.name || 'Professor',
-              email: currentUserResponse.data.email || ''
+              name: currentUser.firstName + ' ' + currentUser.lastName || 'Professor',
+              email: currentUser.email || ''
             }
           }
           
-          return {
+          // Transform to our view model - handle various field names from backend
+          const proposalData = {
             id: schedule.id,
-            subject: { 
-              id: subject.id, 
-              name: subject.name, 
-              code: subject.shortName || ''
-            },
-            group: { 
-              id: group.id, 
-              name: group.name 
-            },
-            proposedDate: schedule.date,
+            subjectId: schedule.subjectId,
+            subject: subject,
+            group: group,
+            proposedDate: schedule.proposedDate || schedule.date || schedule.examDate,
+            proposedTimeStart: schedule.proposedTimeStart || schedule.startTime,
+            proposedTimeEnd: schedule.proposedTimeEnd || schedule.endTime,
+            room: room || { id: null, name: 'Nu este alocată' },
             status: schedule.status,
+            comments: schedule.comments,
             proposedBy: proposedBy,
-            proposalDate: new Date().toISOString(), // Assuming this isn't stored in the DB
-            reviewedBy: reviewedBy,
-            reviewDate: reviewedBy ? new Date().toISOString() : null,
-            room: room,
-            startTime: schedule.startTime,
-            endTime: schedule.endTime,
-            rejectionReason: schedule.reason || null
+            lastStatusChangeDate: schedule.lastStatusChangeDate,
+            rejectionReason: schedule.reason || null,
+            roomRequirements: subject.roomRequirements || ''
           }
+          
+          // Debug the mapped data with date fields
+          console.log('[Mapping Debug] Original vs. Mapped:', {
+            original: {
+              proposedDate: schedule.proposedDate,
+              date: schedule.date,
+              examDate: schedule.examDate,
+              proposedTimeStart: schedule.proposedTimeStart,
+              startTime: schedule.startTime,
+              proposedTimeEnd: schedule.proposedTimeEnd,
+              endTime: schedule.endTime
+            },
+            mapped: {
+              proposedDate: proposalData.proposedDate,
+              proposedTimeStart: proposalData.proposedTimeStart,
+              proposedTimeEnd: proposalData.proposedTimeEnd
+            }
+          })
+          
+          // Debug the transformed data focusing on group info
+          console.log(`[DEBUG] Final proposal data for schedule ${schedule.id}:`, {
+            hasGroup: !!proposalData.group,
+            groupData: proposalData.group,
+            groupName: proposalData.group?.name,
+            originalGroupId: schedule.groupId,
+            originalGroupName: schedule.groupName,
+            subjectGroupId: subject?.groupId
+          })
+          
+          return proposalData
         }))
+        
+        // Filter out any null entries that might have occurred due to failed lookups
+        proposals.value = proposals.value.filter(Boolean)
         
         // Extract distinct groups for filtering
         const uniqueGroups = new Set()
-        groups.value = proposals.value
-          .map(p => ({ name: p.group.name, value: p.group.name }))
+        groupOptions.value = proposals.value
+          .map(p => ({ 
+            name: p.group?.name || 'Fără grupă', 
+            value: p.group?.name || 'Fără grupă' 
+          }))
           .filter(g => {
             if (uniqueGroups.has(g.value)) {
               return false
@@ -1138,25 +1291,24 @@ export default {
         
         store.dispatch('notifications/showNotification', {
           severity: 'error',
-          summary: 'Eroare',
-          detail: 'Nu s-au putut încărca propunerile',
+          summary: 'Eroare',          detail: 'Nu s-au putut încărca propunerile',
           life: 5000
         })
       } finally {
         loading.value = false
       }
     }
-    
+
     // Load rooms for approval dialog
     const loadRooms = async () => {
       try {
         roomsLoading.value = true
-        
-        // Call the API to get all available rooms
-        const response = await axios.get(ROOMS_ENDPOINT)
-        
+
+        // Call the service to get all available rooms
+        const response = await RoomService.getAllRooms()
+
         // Transform the data to match our component's expected format
-        availableRooms.value = response.data.map(room => ({
+        availableRooms.value = response.map(room => ({
           value: room.id,
           name: room.name,
           shortName: room.shortName,
@@ -1165,6 +1317,11 @@ export default {
           computers: room.computers
         }))
         
+        // Cache each room by ID for later use
+        availableRooms.value.forEach(room => {
+          roomsCache.value[room.value] = room
+        })
+
         // Also update roomOptions for other UI elements
         roomOptions.value = availableRooms.value.map(room => ({
           value: room.value,
@@ -1178,8 +1335,293 @@ export default {
           detail: 'Nu s-au putut încărca sălile',
           life: 5000
         })
+      } finally {        roomsLoading.value = false
+      }
+    }
+    
+    // Get a room by ID, using cache when possible
+    const getRoomById = async (roomId) => {
+      // Return from cache if available
+      if (roomsCache.value[roomId]) {
+        return roomsCache.value[roomId]
+      }
+      
+      try {
+        const roomResponse = await RoomService.getById(roomId)
+        const room = {
+          value: roomResponse.data.id,
+          name: roomResponse.data.name,
+          shortName: roomResponse.data.shortName,
+          buildingName: roomResponse.data.buildingName,
+          capacity: roomResponse.data.capacity,
+          computers: roomResponse.data.computers
+        }
+        
+        // Cache the result
+        roomsCache.value[roomId] = room
+        return room
+      } catch (error) {
+        console.error(`Error fetching room ${roomId}:`, error)
+        return null
+      }
+    }
+    
+    // Batch load subjects by IDs - this is mostly maintained for compatibility
+    // since we now load all subjects at once in loadProposals
+    const loadSubjectsByIds = async (subjectIds) => {
+      try {
+        // Check if we have already loaded all subjects in loadProposals
+        if (Object.keys(subjectsCache.value).length > 10) {
+          // We probably already loaded all subjects, just check if any are missing
+          const idsToFetch = subjectIds.filter(id => !subjectsCache.value[id])
+          if (idsToFetch.length === 0) {
+            return // All subjects are already cached
+          }
+          
+          // If just a few are missing, fetch them individually
+          if (idsToFetch.length <= 3) {
+            const promises = idsToFetch.map(id => SubjectService.getById(id))
+            const responses = await Promise.all(promises)
+            
+            responses.forEach(response => {
+              const subject = response.data
+              subjectsCache.value[subject.id] = {
+                id: subject.id,
+                name: subject.name,
+                code: subject.shortName || '',
+                groupId: subject.groupId || null,
+                assistantIds: subject.assistantIds || [] // Include assistantIds for pre-selection
+              }
+            })
+            return
+          }
+        }
+        
+        // In all other cases, just load all subjects at once
+        const allSubjectsResponse = await SubjectService.getAllSubjects()
+        allSubjectsResponse.forEach(subject => {
+          subjectsCache.value[subject.id] = {
+            id: subject.id,
+            name: subject.name,
+            code: subject.shortName || '',
+            groupId: subject.groupId || null
+          }
+        })
+      } catch (error) {
+        console.error('Error loading subjects:', error)
+      }
+    }
+    
+    // Get group by ID, using cache when possible
+    const getGroupById = async (groupId) => {
+      // Handle invalid group ID
+      if (!groupId) {
+        console.log('[DEBUG] Invalid group ID provided to getGroupById')
+        return { id: null, name: 'Fără grupă' }
+      }
+      
+      // Return from cache if available
+      if (groupsCache.value[groupId]) {
+        console.log(`[DEBUG] Returning group from cache for ID ${groupId}:`, groupsCache.value[groupId])
+        return groupsCache.value[groupId]
+      }
+      
+      try {
+        // Try to find the group from our GroupService
+        console.log(`[DEBUG] Fetching group with ID ${groupId} from API`)
+        const response = await GroupService.getById(groupId)
+        
+        const group = {
+          id: response.data.id,
+          name: response.data.name || `Grupa ${response.data.id}`, // Ensure we always have a name
+          shortName: response.data.shortName || ''
+        }
+        
+        // Cache the result
+        groupsCache.value[groupId] = group
+        console.log(`[DEBUG] Cached group from API:`, group)
+        return group
+      } catch (error) {
+        console.error(`Error fetching group ${groupId}:`, error)
+        // Create a fallback group object with at least an ID
+        const fallbackGroup = { id: groupId, name: `Grupa ${groupId}` }
+        groupsCache.value[groupId] = fallbackGroup // Cache even the fallback
+        return fallbackGroup
+      }
+    }
+    
+    // Get subject by ID using cache
+    const getSubjectById = async (subjectId) => {
+      // Handle invalid subject ID
+      if (!subjectId) {
+        return {
+          id: 0,
+          name: 'Disciplină nedefinită',
+          code: 'N/A',
+          groupId: null
+        }
+      }
+      
+      // Return from cache if available
+      if (subjectsCache.value[subjectId]) {
+        return subjectsCache.value[subjectId]
+      }
+      
+      try {
+        const response = await SubjectService.getById(subjectId)
+        const subject = {
+          id: response.data.id,
+          name: response.data.name,
+          code: response.data.shortName || '',
+          groupId: response.data.groupId || null,
+          roomRequirements: response.data.roomRequirements || '',
+          assistantIds: response.data.assistantIds || []
+        }
+        
+        // Cache the result
+        subjectsCache.value[subjectId] = subject
+        return subject
+      } catch (error) {
+        console.error(`Error fetching subject ${subjectId}:`, error)
+        return {
+          id: subjectId,
+          name: `Disciplina ${subjectId}`,
+          code: 'N/A',
+          groupId: null,
+          assistantIds: [] // Add empty assistantIds array for consistency
+        }
+      }
+    }
+    
+    // Load available assistants for approval dialog (CD users who can assist with exams)
+    const loadAssistants = async () => {
+      try {
+        assistantsLoading.value = true
+        
+        // Correctly load CD users who can be assistants (as per subject.assistantIds)
+        const response = await UserService.getUsersByRole('CD')
+        
+        // Transform for dropdown
+        availableAssistants.value = response.data.map(assistant => ({
+          value: assistant.id,
+          label: `${assistant.firstName} ${assistant.lastName}`,
+          name: `${assistant.firstName} ${assistant.lastName}`,
+          email: assistant.email
+        }))
+        
+        // Cache the assistants
+        // Cache by role for role-based queries
+        if (!usersCache.value['roles']) {
+          usersCache.value['roles'] = {}
+        }
+        usersCache.value['roles']['CD'] = response.data
+      } catch (error) {
+        console.error('Error loading assistants:', error)
+        store.dispatch('notifications/showNotification', {
+          severity: 'error',
+          summary: 'Eroare',
+          detail: 'Nu s-au putut încărca asistenţii',
+          life: 5000
+        })
       } finally {
-        roomsLoading.value = false
+        assistantsLoading.value = false
+      }
+    }
+    
+    // Load assistants specific to a subject using the new endpoint
+    const loadAssistantsBySubject = async (subjectId) => {
+      if (!subjectId) {
+        console.warn('No subject ID provided for loading assistants')
+        return []
+      }
+      
+      try {
+        assistantsLoading.value = true
+        console.log(`[DEBUG] Loading assistants for subject ID: ${subjectId}`)
+        
+        // Use the new endpoint to get only relevant assistants for this subject
+        const response = await ScheduleService.getSubjectAssistants(subjectId)
+        console.log(`[DEBUG] Received assistants data:`, response.data)
+        
+        // Transform for dropdown
+        const subjectAssistants = response.data.map(assistant => ({
+          value: assistant.id,
+          label: `${assistant.firstName} ${assistant.lastName}`,
+          name: `${assistant.firstName} ${assistant.lastName}`,
+          email: assistant.email
+        }))
+        
+        console.log(`[DEBUG] Transformed assistants for dropdown:`, subjectAssistants)
+        
+        // Update the available assistants list
+        availableAssistants.value = subjectAssistants
+        assistantOptions.value = subjectAssistants
+        
+        // Also cache these assistants
+        if (!usersCache.value['roles']) {
+          usersCache.value['roles'] = {}
+        }
+        if (!usersCache.value['roles']['CD']) {
+          usersCache.value['roles']['CD'] = []
+        }
+        
+        // Add to cache if not already present
+        response.data.forEach(assistant => {
+          if (!usersCache.value['roles']['CD'].some(a => a.id === assistant.id)) {
+            usersCache.value['roles']['CD'].push(assistant)
+          }
+        })
+        
+        return subjectAssistants
+      } catch (error) {
+        console.error(`Error loading assistants for subject ${subjectId}:`, error)
+        store.dispatch('notifications/showNotification', {
+          severity: 'error',
+          summary: 'Eroare',
+          detail: 'Nu s-au putut încărca asistenţii pentru această disciplină',
+          life: 5000
+        })
+        return []
+      } finally {
+        assistantsLoading.value = false
+      }
+    }
+    
+    // Get users by role with caching
+    const getUsersByRole = async (role, params = {}) => {
+      // Check if we have cached data for this role
+      if (usersCache.value['roles'] && usersCache.value['roles'][role]) {
+        // If params has groupId, filter the cached data
+        if (params.groupId) {
+          return usersCache.value['roles'][role].filter(user => 
+            user.groupId === params.groupId
+          )
+        }
+        return usersCache.value['roles'][role]
+      }
+      
+      try {
+        const response = await UserService.getUsersByRole(role, params)
+        
+        // Initialize roles cache if needed
+        if (!usersCache.value['roles']) {
+          usersCache.value['roles'] = {}
+        }
+        
+        // Cache users by role and also individually by ID
+        usersCache.value['roles'][role] = response.data
+        response.data.forEach(user => {
+          usersCache.value[user.id] = {
+            id: user.id,
+            name: `${user.firstName} ${user.lastName}`,
+            email: user.email
+          }
+        })
+        
+        return response.data
+      } catch (error) {
+        console.error(`Error fetching users with role ${role}:`, error)
+        return []
       }
     }
     
@@ -1188,28 +1630,58 @@ export default {
       // Load initial data
       loadProposals()
       loadRooms()
-      
+
       // We're already loading assistants when opening the dialog,
       // so we don't need to call it on mount
     })
-    
+
+    // Return all the necessary reactive data and methods for the template
     return {
-      loading,
       proposals,
       filteredProposals,
       filters,
+      loading,
       statusOptions,
       groupOptions,
       roomOptions,
+      assistantOptions,
+      roomsLoading,
+      assistantsLoading,
+      availableRooms,
+      availableAssistants,
+      timeOptions,
       dialogs,
+      scheduledExams,
+      isApproveFormValid,
+      
+      // Caches
+      subjectsCache,
+      roomsCache,
+      groupsCache,
+      usersCache,
+      
+      // Cache helper methods
+      getSubjectById,
+      getRoomById,
+      getGroupById,
+      getUsersByRole,
+      loadSubjectsByIds,
+      
       formatDate,
       formatTime,
       formatDatetime,
       getStatusLabel,
       getStatusSeverity,
+      
       openApproveDialog,
       openRejectDialog,
       openDetailsDialog,
+      closeDialogs,
+      
+      validateTimeInterval,
+      getScheduledExam,
+      checkForTimeConflicts,
+      
       approveProposal,
       rejectProposal
     }

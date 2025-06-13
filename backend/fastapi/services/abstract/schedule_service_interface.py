@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Tuple, Dict, Any
 from datetime import date
 from models.DTOs.schedule_dto import ScheduleCreate, ScheduleUpdate, ScheduleResponse
+from models.DTOs.user_dto import UserResponse
 
 class IScheduleService(ABC):
     @abstractmethod
@@ -83,4 +84,33 @@ class IScheduleService(ABC):
 
     @abstractmethod
     async def delete_schedule(self, schedule_id: int) -> bool:
+        pass
+        
+    @abstractmethod
+    async def get_subject_assistants(self, subject_id: int) -> List[UserResponse]:
+        """Get assistants (CD users) associated with a specific subject
+        
+        Args:
+            subject_id (int): The ID of the subject
+            
+        Returns:
+            List[UserResponse]: List of users who are assistants for this subject
+        """
+        pass
+        
+    @abstractmethod
+    async def check_conflicts(self, schedule_id: int, date: date, start_time: str, end_time: str, room_ids: List[int], assistant_ids: List[int]) -> Dict[str, Any]:
+        """Check for conflicts with existing schedules for rooms, assistants, and teacher
+        
+        Args:
+            schedule_id (int): ID of the schedule to exclude from conflict check
+            date (date): Date for the proposed schedule
+            start_time (str): Start time of proposed schedule in format HH:MM
+            end_time (str): End time of proposed schedule in format HH:MM
+            room_ids (List[int]): List of room IDs to check for conflicts
+            assistant_ids (List[int]): List of assistant IDs to check for conflicts
+            
+        Returns:
+            Dict[str, Any]: Dictionary with conflict information
+        """
         pass

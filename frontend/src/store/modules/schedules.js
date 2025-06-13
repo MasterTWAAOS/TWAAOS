@@ -119,6 +119,97 @@ const actions = {
       commit('SET_LOADING', false)
     }
   },
+  
+  // CD (Course Director) specific actions for handling exam proposals
+  async fetchProposals({ commit }) {
+    try {
+      commit('SET_LOADING', true)
+      const response = await apiClient.get('/schedules?status=proposed')
+      return response.data
+    } catch (error) {
+      commit('SET_ERROR', error.message || 'Failed to fetch proposals')
+      throw error
+    } finally {
+      commit('SET_LOADING', false)
+    }
+  },
+  
+  async fetchCDProposals({ commit, rootState }) {
+    try {
+      commit('SET_LOADING', true)
+      // Get current user info to identify CD's subjects
+      const currentUser = rootState.auth.user
+      
+      if (!currentUser || !currentUser.id) {
+        throw new Error('User not authenticated')
+      }
+      
+      // Use our new endpoint that directly gets schedules for the CD's subjects with proposed status
+      // This is much more efficient as it does the filtering on the server side
+      const response = await apiClient.get(`/schedules/teacher/${currentUser.id}?status=proposed`)
+      
+      return response.data
+    } catch (error) {
+      commit('SET_ERROR', error.message || 'Failed to fetch CD proposals')
+      throw error
+    } finally {
+      commit('SET_LOADING', false)
+    }
+  },
+  
+  async approveProposal({ commit }, { scheduleId, approvalData }) {
+    try {
+      commit('SET_LOADING', true)
+      const updateData = {
+        status: 'approved',
+        roomId: approvalData.roomIds[0], // Primary room
+        additionalRoomIds: approvalData.roomIds.slice(1), // Additional rooms if any
+        assistantIds: approvalData.assistantIds,
+        startTime: approvalData.startTime,
+        endTime: approvalData.endTime,
+        comments: approvalData.comments
+      }
+      
+      const response = await apiClient.put(`/schedules/${scheduleId}`, updateData)
+      commit('UPDATE_EXAM_SCHEDULE', { id: scheduleId, schedule: response.data })
+      return response.data
+    } catch (error) {
+      commit('SET_ERROR', error.message || 'Failed to approve proposal')
+      throw error
+    } finally {
+      commit('SET_LOADING', false)
+    }
+  },
+  
+  async rejectProposal({ commit }, { scheduleId, rejectionData }) {
+    try {
+      commit('SET_LOADING', true)
+      const updateData = {
+        status: 'rejected',
+        reason: rejectionData.reason,
+        sendEmail: rejectionData.sendEmail || true
+      }
+      
+      const response = await apiClient.put(`/schedules/${scheduleId}`, updateData)
+      commit('UPDATE_EXAM_SCHEDULE', { id: scheduleId, schedule: response.data })
+      return response.data
+    } catch (error) {
+      commit('SET_ERROR', error.message || 'Failed to reject proposal')
+      throw error
+    } finally {
+      commit('SET_LOADING', false)
+    }
+  },
+  
+  async checkConflicts({ commit }, conflictData) {
+    try {
+      const response = await apiClient.post('/schedules/check-conflicts', conflictData)
+      return response.data
+    } catch (error) {
+      commit('SET_ERROR', error.message || 'Failed to check for conflicts')
+      throw error
+    }
+  },
 
   async deleteScheduleEntry({ commit }, id) {
     try {

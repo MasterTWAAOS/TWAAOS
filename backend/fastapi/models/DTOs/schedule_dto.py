@@ -1,5 +1,5 @@
 from pydantic import BaseModel, model_validator, field_validator
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import date, time, datetime
 
 class ScheduleBase(BaseModel):
@@ -64,6 +64,9 @@ class ScheduleUpdate(BaseModel):
 
 class ScheduleResponse(ScheduleBase):
     id: int
-
+    # Include group name information
+    groupId: Optional[int] = None
+    groupName: Optional[str] = None
+    
     class Config:
         from_attributes = True
