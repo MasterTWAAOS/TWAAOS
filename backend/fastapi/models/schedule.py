@@ -11,7 +11,7 @@ class Schedule(Base):
     date = Column(Date, nullable=True)  # Now nullable for SG to set later
     startTime = Column(Time, nullable=True)  # Now nullable for CD to set later
     endTime = Column(Time, nullable=True)  # Now nullable for CD to set later
-    status = Column(String, nullable=True)  # ex: 'pending', 'proposed', 'approved', 'rejected'
+    status = Column(String, nullable=True)  # ex: 'pending', 'proposed', 'approved', 'rejected', null means not ready but its not an label
     message = Column(String(200), nullable=True)  # New field for CD to give guidance to SG
     
     # Relationships

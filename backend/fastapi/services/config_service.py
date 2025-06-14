@@ -3,6 +3,8 @@ from datetime import datetime
 import logging
 from fastapi import HTTPException
 
+from repositories.abstract.exam_repository_interface import IExamRepository
+
 from models.config import Config
 from models.DTOs.config_dto import ConfigResponse
 from models.DTOs.notification_dto import NotificationCreate
@@ -12,6 +14,9 @@ from services.abstract.email_service_interface import IEmailService
 from services.abstract.notification_service_interface import INotificationService
 from services.abstract.user_service_interface import IUserService
 from models.user import UserRole
+from models.config import Config
+from models.DTOs.config_dto import ConfigResponse
+from models.DTOs.notification_dto import NotificationCreate
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +25,13 @@ class ConfigService(IConfigService):
                  config_repository: IConfigRepository, 
                  email_service: Optional[IEmailService] = None,
                  notification_service: Optional[INotificationService] = None,
-                 user_service: Optional[IUserService] = None):
+                 user_service: Optional[IUserService] = None,
+                 exam_repository: Optional[IExamRepository] = None):
         self.config_repository = config_repository
         self.email_service = email_service
         self.notification_service = notification_service
         self.user_service = user_service
+        self.exam_repository = exam_repository
 
     async def get_current_config(self) -> Optional[ConfigResponse]:
         """Get the current/latest configuration"""
@@ -66,6 +73,15 @@ class ConfigService(IConfigService):
         start_date_formatted = start_date.strftime("%d-%m-%Y")
         end_date_formatted = end_date.strftime("%d-%m-%Y")
         
+        # If exam repository is available, update SG exam statuses to pending
+        if self.exam_repository:
+            try:
+                updated_count = await self.exam_repository.update_sg_exam_statuses_to_pending()
+                logger.info(f"Updated {updated_count} SG user exams to 'pending' status")
+            except Exception as e:
+                logger.error(f"Failed to update SG exam statuses: {e}")
+                # Don't fail the operation if exam status update fails
+        
         # Send email notification to all SG users about the new exam period
         if self.email_service and self.notification_service and self.user_service:
             try:
@@ -98,6 +114,8 @@ class ConfigService(IConfigService):
         else:
             logger.warning("Required services not available - no notifications sent for new exam period")
         
+        # The repository now returns a dictionary with all necessary fields
+        # So we can pass it directly to model_validate
         return ConfigResponse.model_validate(created_config)
         
     async def update_config(self, 
@@ -162,6 +180,8 @@ class ConfigService(IConfigService):
                 logger.error(f"Failed to send or log updated exam period notification emails: {e}")
                 # Don't fail the operation if email/notification process fails
         
+        # The repository now returns a dictionary with all necessary fields
+        # So we can pass it directly to model_validate
         return ConfigResponse.model_validate(updated_config)
 
     async def delete_config(self, config_id: int) -> bool:

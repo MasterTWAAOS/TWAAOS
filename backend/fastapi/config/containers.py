@@ -184,7 +184,8 @@ class Container(containers.DeclarativeContainer):
         config_repository=config_repository,
         email_service=email_service,
         notification_service=notification_service,
-        user_service=user_service
+        user_service=user_service,
+        exam_repository=exam_repository
     )
     
     excel_service = providers.Factory(

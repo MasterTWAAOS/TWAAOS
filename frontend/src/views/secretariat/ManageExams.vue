@@ -675,9 +675,11 @@ export default {
       { id: 5, name: 'Conf. Dr. Dumitrescu Elena' }
     ])
     
-    // Format date
+    // Format a date as DD MMMM YYYY in Romanian
     const formatDate = (dateString) => {
       if (!dateString) return ''
+      // If dateString is exactly 'Nesetat', return it directly
+      if (dateString === 'Nesetat') return 'Nesetat'
       const date = new Date(dateString)
       return new Intl.DateTimeFormat('ro-RO', { 
         day: '2-digit', 
@@ -971,7 +973,7 @@ export default {
         })
         
         // Refresh the exams list to show any updated information
-        fetchExams()
+        loadExams()
       } catch (error) {
         console.error('Error generating Excel:', error)
         store.dispatch('notifications/showNotification', {
@@ -1291,9 +1293,16 @@ export default {
           }
           
           // Find matching room object or create one
-          let room = roomOptions.value.find(r => r.id === exam.roomId) || {
+          let room = exam.roomId == null ? {
+            id: null,
+            name: 'Nesetat',
+            capacity: 0,
+            building: ''
+          } : roomOptions.value.find(r => r.id === exam.roomId) || {
             id: exam.roomId,
-            name: exam.roomName
+            name: exam.roomName || `Room ${exam.roomId}`,
+            capacity: exam.roomCapacity || 0,
+            building: exam.building || 'Main Building'
           }
           
           // Create professor object from the data
@@ -1314,13 +1323,15 @@ export default {
             studyYear: exam.studyYear || 1
           }
           
-          // Parse date string to Date object if needed
-          let examDate = typeof exam.date === 'string' ? new Date(exam.date) : exam.date
+          // Parse date string to Date object if needed, or set to "Nesetat" if null
+          let examDate = exam.date == null ? "Nesetat" : (typeof exam.date === 'string' ? new Date(exam.date) : exam.date)
           
-          // Format start time
-          let startTime = typeof exam.startTime === 'string' ? 
-            exam.startTime : 
-            `${exam.startTime.hour.toString().padStart(2, '0')}:${exam.startTime.minute.toString().padStart(2, '0')}`
+          // Format start time with proper null checking
+          let startTime = exam.startTime == null ? 
+                "Nesetat" : 
+                (typeof exam.startTime === 'string' ? 
+                  exam.startTime : 
+                  `${exam.startTime?.hour?.toString().padStart(2, '0') || '00'}:${exam.startTime?.minute?.toString().padStart(2, '0') || '00'}`)
           
           return {
             id: exam.id,
@@ -1334,7 +1345,7 @@ export default {
             room: room,
             professor: professor,
             notes: exam.notes || '',
-            status: exam.status || 'SCHEDULED',
+            status: exam.status || 'Nepregătit',
             // Additional fields from Excel export
             studyProgram: exam.specializationShortName,
             studyYear: exam.studyYear

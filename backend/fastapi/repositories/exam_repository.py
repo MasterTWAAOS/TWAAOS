@@ -19,6 +19,48 @@ class ExamRepository(IExamRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
         
+    async def update_sg_exam_statuses_to_pending(self) -> int:
+        """Updates the status of exams for SG (Student Group) users to 'pending' status
+        
+        Returns:
+            int: Number of exams updated
+        """
+        logger.info("[DEBUG] ExamRepository - update_sg_exam_statuses_to_pending: Starting execution")
+        
+        try:
+            # Query to find schedules (exams) associated with SG users
+            # The relation is: Schedule -> Subject -> Group -> users (where user.role == 'SG')
+            query = (
+                select(Schedule)
+                .join(Schedule.subject)
+                .join(Subject.group)
+                .join(Group.users)  # This joins from Group to the Users who are the SG reps (plural: users)
+                .where(
+                    (User.role == "SG") & 
+                    ((Schedule.status != "pending") | (Schedule.status.is_(None)))
+                )
+            )
+            
+            result = await self.db.execute(query)
+            schedules = result.scalars().all()
+            
+            logger.info(f"[DEBUG] ExamRepository - Found {len(schedules)} SG exams to update")
+            
+            updated_count = 0
+            for schedule in schedules:
+                schedule.status = "pending"  # Set status to pending
+                updated_count += 1
+                
+            await self.db.commit()
+            
+            logger.info(f"[DEBUG] ExamRepository - Updated {updated_count} exams to pending status")
+            return updated_count
+            
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"[DEBUG] ExamRepository - Error in update_sg_exam_statuses_to_pending: {str(e)}")
+            raise
+        
     async def get_all_exams_with_details(self) -> List[Dict[str, Any]]:
         """Get all exams with joined details from related tables
         
@@ -70,8 +112,6 @@ class ExamRepository(IExamRepository):
                 if room:
                     room_id = room.id
                     room_name = room.name
-                else:
-                    logger.warning(f"[DEBUG] ExamRepository - Schedule {schedule.id} has no room relation")
                 
                 # Handle nullable start and end times
                 duration = None

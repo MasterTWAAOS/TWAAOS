@@ -35,8 +35,11 @@ class ConfigRepository(IConfigRepository):
         )
         return result.scalars().all()
 
-    async def create(self, start_date: datetime, end_date: datetime) -> Config:
-        """Create a new configuration"""
+    async def create(self, start_date: datetime, end_date: datetime) -> dict:
+        """Create a new configuration
+        
+        Returns a dictionary with all config attributes to avoid async attribute access issues
+        """
         config = Config(
             startDate=start_date,
             endDate=end_date
@@ -45,13 +48,25 @@ class ConfigRepository(IConfigRepository):
         self.db.add(config)
         await self.db.commit()
         await self.db.refresh(config)
-        return config
+        
+        # Extract all attributes as a dictionary to avoid async attribute access issues later
+        config_dict = {
+            "id": config.id,
+            "startDate": config.startDate,
+            "endDate": config.endDate,
+            "modified_at": config.modified_at
+        }
+        
+        return config_dict
         
     async def update(self, 
                    config_id: int,
                    start_date: Optional[datetime] = None,
-                   end_date: Optional[datetime] = None) -> Config:
-        """Update an existing configuration"""
+                   end_date: Optional[datetime] = None) -> dict:
+        """Update an existing configuration
+        
+        Returns a dictionary with all config attributes to avoid async attribute access issues
+        """
         config = await self.get_by_id(config_id)
         if not config:
             raise ValueError(f"Config with id {config_id} not found")
@@ -65,7 +80,16 @@ class ConfigRepository(IConfigRepository):
         # modified_at will be automatically updated by the database
         await self.db.commit()
         await self.db.refresh(config)
-        return config
+        
+        # Extract all attributes as a dictionary to avoid async attribute access issues later
+        config_dict = {
+            "id": config.id,
+            "startDate": config.startDate,
+            "endDate": config.endDate,
+            "modified_at": config.modified_at
+        }
+        
+        return config_dict
 
     async def delete(self, config_id: int) -> bool:
         """Delete a configuration"""

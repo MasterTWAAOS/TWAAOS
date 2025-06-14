@@ -6,6 +6,15 @@ class IExamRepository(ABC):
     """Interface for exam repository operations"""
     
     @abstractmethod
+    async def update_sg_exam_statuses_to_pending(self) -> int:
+        """Updates the status of exams for SG (Student Group) users to 'pending' status
+        
+        Returns:
+            int: Number of exams updated
+        """
+        pass
+    
+    @abstractmethod
     async def get_all_exams_with_details(self) -> List[Dict[str, Any]]:
         """Get all exams with joined details from related tables
         
