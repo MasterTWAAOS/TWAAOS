@@ -307,6 +307,19 @@
                   />
                 </div>
                 
+                <div class="p-field p-col-12">
+                  <label for="message">Mesaj de la Cadrul Didactic</label>
+                  <Textarea 
+                    id="message" 
+                    v-model="examForm.message" 
+                    rows="3" 
+                    placeholder="Mesaj de la cadrul didactic cu preferințe pentru programare"
+                    :maxlength="200"
+                    disabled
+                  />
+                  <small v-if="examForm.message" class="p-text-secondary">Acest mesaj a fost adăugat de către cadrul didactic cu preferințe pentru programarea examenului.</small>
+                </div>
+                
                 <div class="p-col-12">
                   <div class="p-d-flex p-jc-end">
                     <Button 
@@ -430,7 +443,18 @@
             />
           </div>
           
-          <!-- Notes field removed as requested -->
+          <div class="p-field p-col-12">
+            <label for="edit-message">Mesaj de la Cadrul Didactic</label>
+            <Textarea 
+              id="edit-message" 
+              v-model="editDialog.exam.message" 
+              rows="3" 
+              placeholder="Mesaj de la cadrul didactic cu preferințe pentru programare"
+              :maxlength="200"
+              disabled
+            />
+            <small v-if="editDialog.exam.message" class="p-text-secondary">Acest mesaj a fost adăugat de către cadrul didactic cu preferințe pentru programarea examenului.</small>
+          </div>
         </div>
       </div>
       

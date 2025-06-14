@@ -85,6 +85,36 @@ class SubjectRepository(ISubjectRepository):
             # Re-raise the exception after rollback
             raise e
             
+    async def update_teacher_for_group_subjects(self, group_id: int, teacher_id: int) -> int:
+        """Update the teacherId for all subjects assigned to a specific group.
+        
+        Args:
+            group_id (int): The ID of the group whose subjects will be updated
+            teacher_id (int): The new teacher ID to set for these subjects
+            
+        Returns:
+            int: The number of subjects updated
+        """
+        try:
+            # First get all subjects for this group
+            subjects = await self.get_by_group_id(group_id)
+            count = len(subjects)
+            logger.info(f"Found {count} subjects for group ID {group_id} to update teacher to ID {teacher_id}")
+            
+            # Update each subject's teacherId
+            for subject in subjects:
+                subject.teacherId = teacher_id
+                
+            # Commit the changes
+            await self.db.commit()
+            logger.info(f"Successfully updated {count} subjects with new teacher ID {teacher_id}")
+            return count
+            
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error updating teacher ID for group subjects: {str(e)}")
+            raise e
+    
     async def delete_all(self) -> int:
         """Delete all subjects from the database using a direct SQL DELETE statement.
         

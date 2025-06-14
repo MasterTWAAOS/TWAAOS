@@ -4,11 +4,12 @@ from datetime import date, time, datetime
 
 class ScheduleBase(BaseModel):
     subjectId: int
-    roomId: int
-    date: date
-    startTime: time
-    endTime: time
-    status: str  # ex: 'pending', 'proposed', 'approved', 'rejected'
+    roomId: Optional[int] = None
+    date: Optional[date] = None
+    startTime: Optional[time] = None
+    endTime: Optional[time] = None
+    status: Optional[str] = None  # ex: 'pending', 'proposed', 'approved', 'rejected'
+    message: Optional[str] = None  # New field for CD to give guidance to SG (up to 200 chars)
 
 class ScheduleCreate(ScheduleBase):
     pass
@@ -22,6 +23,7 @@ class ScheduleUpdate(BaseModel):
     status: Optional[str] = None
     reason: Optional[str] = None  # Reason for rejection
     comments: Optional[str] = None  # Additional comments
+    message: Optional[str] = None  # CD message to SG about preferred dates
     
     # New fields for CD functionality
     additionalRoomIds: Optional[list[int]] = None  # Additional rooms for the exam
@@ -43,6 +45,7 @@ class ScheduleUpdate(BaseModel):
                 "endTime": "11:00:00",
                 "status": "approved",
                 "comments": "Exam approved with multiple rooms",
+                "message": "Please schedule for early July if possible.",
                 "sendEmail": True
             }
         }

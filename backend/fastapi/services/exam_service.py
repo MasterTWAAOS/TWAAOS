@@ -162,18 +162,34 @@ class ExamService(IExamService):
         logger.info(f"[DEBUG] ExamService - Creating exam proposal with data: {proposal_data}")  
         
         try:
-            # Validate date is within the exam period
-            if 'date' in proposal_data:
+            # Validate the only required field is present
+            if 'subjectId' not in proposal_data:
+                raise ValueError("Subject ID is required for exam proposals")
+                
+            # Validate date is within the exam period, but only if date is provided
+            if 'date' in proposal_data and proposal_data['date'] is not None:
                 date_valid = await self._validate_date_in_exam_period(proposal_data['date'])
                 if not date_valid:
                     raise ValueError("Proposed date is not within the configured exam period")
             
-            # Ensure status is set properly - either from input or default to 'proposed' for SG proposals
-            if 'status' not in proposal_data or not proposal_data['status']:
-                proposal_data['status'] = 'proposed'
-                logger.info(f"[DEBUG] ExamService - Setting default status for proposal: 'proposed'")
-            else:
+            # Handle optional status field - either from input or use specific value based on role logic
+            # Status can now be null, but if provided we'll use it
+            if 'status' in proposal_data and proposal_data['status']:
                 logger.info(f"[DEBUG] ExamService - Using provided status: '{proposal_data['status']}'")
+            else:
+                # If no status is provided, we can either leave it as None or set a default
+                # Here we'll still set a default for backward compatibility
+                proposal_data['status'] = 'pending'  
+                logger.info(f"[DEBUG] ExamService - Setting default status for proposal: 'pending'")
+                
+            # Handle message field if provided
+            if 'message' in proposal_data and proposal_data['message']:
+                # Safely truncate long messages in logs
+                message_preview = proposal_data['message'][:50] + '...' if len(proposal_data['message']) > 50 else proposal_data['message']
+                logger.info(f"[DEBUG] ExamService - Proposal includes message: '{message_preview}'")
+            else:
+                # Add empty message field if not provided
+                proposal_data['message'] = None
                 
             # Create the exam proposal
             exam_data = await self.exam_repository.create_exam(proposal_data)

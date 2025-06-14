@@ -117,39 +117,26 @@ class ScheduleRepository(IScheduleRepository):
                 logger.warning("[DEBUG] Repository - No subjects found to create schedules from")
                 return stats
             
-            # Get the first available room to use as default if needed
-            room_query = select(Room).limit(1)
-            room_result = await self.db.execute(room_query)
-            default_room = room_result.scalar_one_or_none()
-            
-            if not default_room:
-                logger.error("[DEBUG] Repository - No rooms available in the database")
-                stats["error_details"].append("No rooms available in the database")
-                return stats
-            
-            # Today's date to use as default
-            today = datetime.now().date()
-            
-            # Default times (9:00 - 11:00)
-            default_start_time = time(9, 0)
-            default_end_time = time(11, 0)
-            
-            # Default status
-            default_status = "proposed"
+            # We'll set most fields to None to utilize the nullable fields
+            # This allows other roles to progressively populate the schedule data
+            # The only required field is subjectId
             
             # Process each subject
             for subject in subjects:
                 try:
                     stats["processed"] += 1
                     
-                    # Create a new schedule for this subject
+                    # Create a new schedule for this subject with only the required subjectId
+                    # All other fields are set to None to utilize the nullable fields we've implemented
+                    # This supports the multi-role workflow where different roles progressively fill data
                     new_schedule = Schedule(
                         subjectId=subject.id,
-                        roomId=default_room.id,
-                        date=today,
-                        startTime=default_start_time,
-                        endTime=default_end_time,
-                        status=default_status
+                        roomId=None,       # Nullable field - will be filled by appropriate role
+                        date=None,         # Nullable field - will be filled by appropriate role
+                        startTime=None,    # Nullable field - will be filled by appropriate role
+                        endTime=None,      # Nullable field - will be filled by appropriate role
+                        status=None,       # Nullable field - will be filled by appropriate role
+                        message=None       # New nullable field for messages from CD to SG
                     )
                     
                     # Add to database

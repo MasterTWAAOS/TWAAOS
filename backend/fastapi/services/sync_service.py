@@ -35,44 +35,52 @@ class SyncService(ISyncService):
         
     async def delete_all_data(self) -> Dict[str, int]:
         """
-        Delete all data from the database in the correct order (subjects, users, rooms, groups)
-        to avoid foreign key constraint violations.
+        Delete all data from the database in the correct order to avoid foreign key constraint violations.
+        Order: schedules → subjects → users → rooms → groups
         
         Returns:
             Dict[str, int]: A dictionary with counts of deleted entities
         """
         deleted_counts = {
+            "schedules": 0,
             "subjects": 0,
             "users": 0,
             "rooms": 0,
             "groups": 0
         }
         
-        # First, delete subjects (they have foreign keys to users and groups)
+        # First, delete schedules (they reference subjects)
+        try:
+            deleted_counts["schedules"] = await self.schedule_service.delete_all_schedules()
+            logger.info(f"Step 1/5: Deleted {deleted_counts['schedules']} schedules before synchronization")
+        except Exception as schedule_delete_error:
+            logger.error(f"Error deleting schedules: {str(schedule_delete_error)}")
+        
+        # Second, delete subjects (they have foreign keys to users and groups)
         try:
             deleted_counts["subjects"] = await self.subject_service.delete_all_subjects()
-            logger.info(f"Step 1/4: Deleted {deleted_counts['subjects']} subjects before synchronization")
+            logger.info(f"Step 2/5: Deleted {deleted_counts['subjects']} subjects before synchronization")
         except Exception as subject_delete_error:
             logger.error(f"Error deleting subjects: {str(subject_delete_error)}")
         
-        # Second, delete users
+        # Third, delete users
         try:
             deleted_counts["users"] = await self.user_service.delete_all_users()
-            logger.info(f"Step 2/4: Deleted {deleted_counts['users']} users before synchronization")
+            logger.info(f"Step 3/5: Deleted {deleted_counts['users']} users before synchronization")
         except Exception as user_delete_error:
             logger.error(f"Error deleting users: {str(user_delete_error)}")
 
-        # Third, delete rooms
+        # Fourth, delete rooms
         try:
             deleted_counts["rooms"] = await self.room_service.delete_all_rooms()
-            logger.info(f"Step 3/4: Deleted {deleted_counts['rooms']} rooms before synchronization")
+            logger.info(f"Step 4/5: Deleted {deleted_counts['rooms']} rooms before synchronization")
         except Exception as room_delete_error:
             logger.error(f"Error deleting rooms: {str(room_delete_error)}")
         
         # Last, delete groups
         try:
             deleted_counts["groups"] = await self.group_service.delete_all_groups()
-            logger.info(f"Step 4/4: Deleted {deleted_counts['groups']} groups before synchronization")
+            logger.info(f"Step 5/5: Deleted {deleted_counts['groups']} groups before synchronization")
         except Exception as group_delete_error:
             logger.error(f"Error deleting groups: {str(group_delete_error)}")
 
@@ -238,6 +246,63 @@ class SyncService(ISyncService):
         
         return created_users, test_users_count
     
+    async def update_subjects_for_test_users(self, test_users: List[Any]) -> Dict[str, Any]:
+        """
+        Updates subjects assigned to the SG test user's group to use the CD test user as teacher.
+        
+        Args:
+            test_users (List[Any]): List of test user objects created during synchronization
+            
+        Returns:
+            Dict[str, Any]: Results of the subject update operation
+        """
+        result = {
+            "updated_subjects": 0,
+            "success": False,
+            "message": ""
+        }
+        
+        try:
+            # Find the SG and CD test users from the created users
+            sg_user = None
+            cd_user = None
+            
+            for user in test_users:
+                if user.email == "niculai.crainiciuc@student.usv.ro" and user.role == "SG":
+                    sg_user = user
+                elif user.email == "filaret.crainiciuc@student.usv.ro" and user.role == "CD":
+                    cd_user = user
+            
+            # If both users were found, update the subjects
+            if sg_user and cd_user and sg_user.groupId:
+                logger.info(f"Updating subjects for SG test user's group {sg_user.groupId} to use CD test user {cd_user.id} as teacher")
+                updated_subjects = await self.subject_service.update_teacher_for_group_subjects(
+                    group_id=sg_user.groupId,
+                    teacher_id=cd_user.id
+                )
+                
+                result["updated_subjects"] = updated_subjects
+                result["success"] = True
+                result["message"] = f"Successfully updated {updated_subjects} subjects to use test CD user as teacher"
+                logger.info(result["message"])
+            else:
+                missing = []
+                if not sg_user:
+                    missing.append("SG test user")
+                if not cd_user:
+                    missing.append("CD test user")
+                if sg_user and not sg_user.groupId:
+                    missing.append("SG test user's group ID")
+                
+                result["message"] = f"Unable to update subjects: Missing {', '.join(missing)}"
+                logger.warning(f"Could not update subjects for test users. {result['message']}")
+        except Exception as e:
+            result["message"] = f"Error updating subjects for test users: {str(e)}"
+            result["error"] = str(e)
+            logger.error(result["message"])
+            
+        return result
+    
     async def sync_all_data(self) -> Dict[str, Any]:
         """
         Orchestrates the entire synchronization process:
@@ -289,6 +354,24 @@ class SyncService(ISyncService):
                 
                 # Update total users count
                 result["synced"]["users"] += test_users_count
+                
+                # NEW FEATURE: Update subjects for SG test user's group to use CD test user as teacher
+                # Call the dedicated method for better code organization
+                logger.info("Step 3.1: Updating subjects for test users")
+                subject_update_result = await self.update_subjects_for_test_users(created_users)
+                
+                # Add the results to the sync response
+                if "updated_subjects" in subject_update_result:
+                    result["test_users"]["updated_subjects"] = subject_update_result["updated_subjects"]
+                
+                if "message" in subject_update_result:
+                    if subject_update_result["success"]:
+                        result["test_users"]["subject_update_message"] = subject_update_result["message"]
+                    else:
+                        result["test_users"]["subject_update_warning"] = subject_update_result["message"]
+                        
+                if "error" in subject_update_result:
+                    result["test_users"]["subject_update_error"] = subject_update_result["error"]
                 
             except Exception as test_user_error:
                 # If test users creation fails, still return success for the main sync

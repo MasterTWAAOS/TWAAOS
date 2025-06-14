@@ -564,6 +564,10 @@ class ScheduleService(IScheduleService):
         if schedule_data.endTime is not None:
             schedule.endTime = schedule_data.endTime
             
+        if schedule_data.message is not None:
+            logger.info(f"[DEBUG] Updating schedule {schedule_id} message: {schedule_data.message}")
+            schedule.message = schedule_data.message
+            
         if schedule_data.status is not None:
             logger.info(f"[DEBUG] Updating schedule {schedule_id} status to: {schedule_data.status}")
             old_status = schedule.status

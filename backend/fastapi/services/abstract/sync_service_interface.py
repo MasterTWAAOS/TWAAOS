@@ -51,6 +51,19 @@ class ISyncService(ABC):
             Tuple[List[Any], int]: A tuple containing a list of created users and the count of created users
         """
         pass
+        
+    @abstractmethod
+    async def update_subjects_for_test_users(self, test_users: List[Any]) -> Dict[str, Any]:
+        """
+        Updates subjects assigned to the SG test user's group to use the CD test user as teacher.
+        
+        Args:
+            test_users (List[Any]): List of test user objects created during synchronization
+            
+        Returns:
+            Dict[str, Any]: Results of the subject update operation
+        """
+        pass
     
     @abstractmethod
     async def sync_all_data(self) -> Dict[str, Any]:

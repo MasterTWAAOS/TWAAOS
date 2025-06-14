@@ -63,40 +63,49 @@ class ExamRepository(IExamRepository):
                     logger.warning(f"[DEBUG] ExamRepository - Subject {subject.id} has no teacher relation")
                     continue
                     
+                # Handle nullable room relation
                 room = schedule.room
-                if not room:
+                room_id = None
+                room_name = None
+                if room:
+                    room_id = room.id
+                    room_name = room.name
+                else:
                     logger.warning(f"[DEBUG] ExamRepository - Schedule {schedule.id} has no room relation")
-                    continue
                 
-                # Calculate duration in hours
+                # Handle nullable start and end times
+                duration = None
                 start_time = schedule.startTime
                 end_time = schedule.endTime
                 
-                # Calculate hours difference
-                hours_diff = end_time.hour - start_time.hour
-                if end_time.minute < start_time.minute:
-                    hours_diff -= 1
+                # Calculate duration only if both times are available
+                if start_time is not None and end_time is not None:
+                    # Calculate hours difference
+                    hours_diff = end_time.hour - start_time.hour
+                    if end_time.minute < start_time.minute:
+                        hours_diff -= 1
+                    
+                    # Ensure duration is at least 1 hour
+                    duration = max(1, hours_diff)
                 
-                # Ensure duration is at least 1 hour
-                duration = max(1, hours_diff)
-                
-                # Create formatted exam entry
+                # Create formatted exam entry with proper handling of nullable fields
                 formatted_exam = {
                     "id": schedule.id,
-                    "subjectId": subject.id,
+                    "subjectId": subject.id,  # Only required field
                     "subjectName": subject.name,
                     "subjectShortName": subject.shortName,
                     "teacherId": teacher.id,
                     "teacherName": f"{teacher.lastName} {teacher.firstName}",
                     "teacherEmail": teacher.email,
                     "teacherPhone": teacher.phone,
-                    "roomId": room.id,
-                    "roomName": room.name,
-                    "date": schedule.date,
-                    "startTime": schedule.startTime,
-                    "endTime": schedule.endTime,
-                    "duration": duration,
-                    "status": schedule.status,
+                    "roomId": room_id,        # Using the nullable room_id variable
+                    "roomName": room_name,     # Using the nullable room_name variable
+                    "date": schedule.date,     # Nullable
+                    "startTime": schedule.startTime, # Nullable
+                    "endTime": schedule.endTime,   # Nullable
+                    "duration": duration,      # Calculated field, may be None
+                    "status": schedule.status, # Nullable
+                    "message": schedule.message, # New nullable message field
                     "groupId": group.id,
                     "groupName": group.name,
                     "specializationShortName": group.specializationShortName,

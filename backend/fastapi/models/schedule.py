@@ -7,11 +7,12 @@ class Schedule(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     subjectId = Column(Integer, ForeignKey("subjects.id"), nullable=False)
-    roomId = Column(Integer, ForeignKey("rooms.id"), nullable=False)
-    date = Column(Date, nullable=False)
-    startTime = Column(Time, nullable=False)
-    endTime = Column(Time, nullable=False)
-    status = Column(String, nullable=False)  # ex: 'pending', 'proposed', 'approved', 'rejected'
+    roomId = Column(Integer, ForeignKey("rooms.id"), nullable=True)  # Now nullable for CD to set later
+    date = Column(Date, nullable=True)  # Now nullable for SG to set later
+    startTime = Column(Time, nullable=True)  # Now nullable for CD to set later
+    endTime = Column(Time, nullable=True)  # Now nullable for CD to set later
+    status = Column(String, nullable=True)  # ex: 'pending', 'proposed', 'approved', 'rejected'
+    message = Column(String(200), nullable=True)  # New field for CD to give guidance to SG
     
     # Relationships
     subject = relationship("Subject", back_populates="schedules")

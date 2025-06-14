@@ -12,13 +12,14 @@ class ExamResponse(BaseModel):
     teacherName: str
     teacherEmail: str
     teacherPhone: Optional[str]
-    roomId: int
-    roomName: str
-    date: date
-    startTime: time
-    endTime: time
-    duration: int  # calculated field in hours
-    status: str
+    roomId: Optional[int] = None
+    roomName: Optional[str] = None
+    date: Optional[date] = None
+    startTime: Optional[time] = None
+    endTime: Optional[time] = None
+    duration: Optional[int] = None  # calculated field in hours
+    status: Optional[str] = None
+    message: Optional[str] = None  # New message field from CD to SG
     notes: Optional[str] = None
     # Group information
     groupId: int

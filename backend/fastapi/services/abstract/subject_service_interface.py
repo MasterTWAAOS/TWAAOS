@@ -24,6 +24,19 @@ class ISubjectService(ABC):
         pass
         
     @abstractmethod
+    async def update_teacher_for_group_subjects(self, group_id: int, teacher_id: int) -> int:
+        """Update the teacherId for all subjects assigned to a specific group.
+        
+        Args:
+            group_id (int): The ID of the group whose subjects will be updated
+            teacher_id (int): The new teacher ID to set for these subjects
+            
+        Returns:
+            int: The number of subjects updated
+        """
+        pass
+        
+    @abstractmethod
     async def validate_group_id(self, group_id: int) -> Tuple[bool, Optional[str]]:
         pass
         

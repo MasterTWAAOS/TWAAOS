@@ -39,6 +39,32 @@ class SubjectService(ISubjectService):
     async def get_subjects_by_assistant_id(self, assistant_id: int) -> List[SubjectResponse]:
         subjects = await self.subject_repository.get_by_assistant_id(assistant_id)
         return [SubjectResponse.model_validate(subject) for subject in subjects]
+    
+    async def update_teacher_for_group_subjects(self, group_id: int, teacher_id: int) -> int:
+        """Update the teacherId for all subjects assigned to a specific group.
+        
+        Args:
+            group_id (int): The ID of the group whose subjects will be updated
+            teacher_id (int): The new teacher ID to set for these subjects
+            
+        Returns:
+            int: The number of subjects updated
+        """
+        logger.info(f"Service: Updating teacher ID {teacher_id} for all subjects in group {group_id}")
+        
+        # First validate both IDs
+        group_valid, group_error = await self.validate_group_id(group_id)
+        if not group_valid:
+            raise ValueError(f"Invalid group ID: {group_error}")
+            
+        # Validate teacher ID exists
+        teacher = await self.user_repository.get_by_id(teacher_id)
+        if not teacher or teacher.role != "CD":
+            raise ValueError(f"Invalid teacher ID or not a Course Director role: {teacher_id}")
+        
+        # Call repository method to update all subjects for this group
+        updated_count = await self.subject_repository.update_teacher_for_group_subjects(group_id, teacher_id)
+        return updated_count
         
     async def validate_group_id(self, group_id: int) -> Tuple[bool, Optional[str]]:
         """Validates if the group_id exists.
