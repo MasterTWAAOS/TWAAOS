@@ -215,8 +215,8 @@
             <Tag :value="slotProps.data.statusLabel" :severity="getStatusSeverity(slotProps.data.status)" />
           </template>
         </Column>
-        <!-- Removed 'Trimis la' column as it's not needed -->
-        <Column header="Acțiuni" style="width: 15%">
+        <!-- Only show Actions column if we have exams with approved or rejected status -->
+        <Column v-if="hasActionableExams" header="Acțiuni" style="width: 15%">
           <template #body="slotProps">
             <div class="action-buttons">
               <Button 
@@ -405,6 +405,13 @@ export default {
     // Computed property to check if date is filled
     const isProposalValid = computed(() => {
       return !!proposeDialog.date
+    })
+    
+    // Check if any exams have status approved or rejected, which would need actions
+    const hasActionableExams = computed(() => {
+      return myProposals.value.some(proposal => 
+        proposal.status === 'approved' || proposal.status === 'rejected'
+      )
     })
     
     // Format dates
@@ -939,7 +946,8 @@ export default {
       onSubjectSelect,
       openProposeDialog,
       submitProposal,
-      loadExamPeriod
+      loadExamPeriod,
+      hasActionableExams
     }
   }
 }
