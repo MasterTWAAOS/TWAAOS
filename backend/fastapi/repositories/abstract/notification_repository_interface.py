@@ -30,3 +30,12 @@ class INotificationRepository(ABC):
     @abstractmethod
     async def delete(self, notification_id: int) -> bool:
         pass
+
+    @abstractmethod
+    async def delete_all(self) -> int:
+        """Delete all notifications from the database
+        
+        Returns:
+            int: Number of notifications deleted
+        """
+        pass

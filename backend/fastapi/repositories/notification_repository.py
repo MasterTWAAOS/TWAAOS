@@ -43,3 +43,18 @@ class NotificationRepository(INotificationRepository):
             await self.db.commit()
             return True
         return False
+        
+    async def delete_all(self) -> int:
+        """Delete all notifications from the database
+        
+        Returns:
+            int: Number of notifications deleted
+        """
+        # Use the SQLAlchemy delete statement to delete all notifications at once
+        from sqlalchemy import delete
+        result = await self.db.execute(delete(Notification))
+        deleted_count = result.rowcount
+        await self.db.commit()
+        
+        print(f"Deleted {deleted_count} notifications")
+        return deleted_count

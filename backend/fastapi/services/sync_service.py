@@ -11,6 +11,7 @@ from services.abstract.room_service_interface import IRoomService
 from services.abstract.user_service_interface import IUserService
 from services.abstract.subject_service_interface import ISubjectService
 from services.abstract.schedule_service_interface import IScheduleService
+from services.abstract.notification_service_interface import INotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -25,18 +26,20 @@ class SyncService(ISyncService):
         room_service: IRoomService,
         user_service: IUserService,
         subject_service: ISubjectService,
-        schedule_service: IScheduleService
+        schedule_service: IScheduleService,
+        notification_service: INotificationService = None
     ):
         self.group_service = group_service
         self.room_service = room_service
         self.user_service = user_service
         self.subject_service = subject_service
         self.schedule_service = schedule_service
+        self.notification_service = notification_service
         
     async def delete_all_data(self) -> Dict[str, int]:
         """
         Delete all data from the database in the correct order to avoid foreign key constraint violations.
-        Order: schedules → subjects → users → rooms → groups
+        Order: schedules → subjects → notifications → users → rooms → groups
         
         Returns:
             Dict[str, int]: A dictionary with counts of deleted entities
@@ -44,6 +47,7 @@ class SyncService(ISyncService):
         deleted_counts = {
             "schedules": 0,
             "subjects": 0,
+            "notifications": 0,
             "users": 0,
             "rooms": 0,
             "groups": 0
@@ -59,30 +63,41 @@ class SyncService(ISyncService):
         # Second, delete subjects (they have foreign keys to users and groups)
         try:
             deleted_counts["subjects"] = await self.subject_service.delete_all_subjects()
-            logger.info(f"Step 2/5: Deleted {deleted_counts['subjects']} subjects before synchronization")
+            logger.info(f"Step 2/6: Deleted {deleted_counts['subjects']} subjects before synchronization")
         except Exception as subject_delete_error:
             logger.error(f"Error deleting subjects: {str(subject_delete_error)}")
         
-        # Third, delete users
+        # Third, delete notifications (they have foreign keys to users)
+        try:
+            if self.notification_service:
+                deleted_counts["notifications"] = await self.notification_service.delete_all_notifications()
+                logger.info(f"Step 3/6: Deleted {deleted_counts['notifications']} notifications before synchronization")
+            else:
+                logger.warning("Notification service not available, skipping notification deletion")
+        except Exception as notification_delete_error:
+            logger.error(f"Error deleting notifications: {str(notification_delete_error)}")
+            
+        # Fourth, delete users
         try:
             deleted_counts["users"] = await self.user_service.delete_all_users()
-            logger.info(f"Step 3/5: Deleted {deleted_counts['users']} users before synchronization")
+            logger.info(f"Step 4/6: Deleted {deleted_counts['users']} users before synchronization")
         except Exception as user_delete_error:
             logger.error(f"Error deleting users: {str(user_delete_error)}")
 
-        # Fourth, delete rooms
+        # Fifth, delete rooms
         try:
             deleted_counts["rooms"] = await self.room_service.delete_all_rooms()
-            logger.info(f"Step 4/5: Deleted {deleted_counts['rooms']} rooms before synchronization")
+            logger.info(f"Step 5/6: Deleted {deleted_counts['rooms']} rooms before synchronization")
         except Exception as room_delete_error:
             logger.error(f"Error deleting rooms: {str(room_delete_error)}")
         
         # Last, delete groups
         try:
             deleted_counts["groups"] = await self.group_service.delete_all_groups()
-            logger.info(f"Step 5/5: Deleted {deleted_counts['groups']} groups before synchronization")
+            logger.info(f"Step 6/6: Deleted {deleted_counts['groups']} groups before synchronization")
         except Exception as group_delete_error:
             logger.error(f"Error deleting groups: {str(group_delete_error)}")
+
 
             
         return deleted_counts

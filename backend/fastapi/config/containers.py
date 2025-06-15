@@ -171,7 +171,8 @@ class Container(containers.DeclarativeContainer):
         room_service=room_service,
         user_service=user_service,
         subject_service=subject_service,
-        schedule_service=schedule_service
+        schedule_service=schedule_service,
+        notification_service=notification_service
     )
     
     email_service = providers.Factory(
@@ -197,8 +198,10 @@ class Container(containers.DeclarativeContainer):
     exam_service = providers.Factory(
         ExamService,
         exam_repository=exam_repository,
+        schedule_service=schedule_service,
         email_service=email_service,
         notification_service=notification_service,
         user_service=user_service,
-        subject_service=subject_service
+        subject_service=subject_service,
+        config_service=config_service
     )

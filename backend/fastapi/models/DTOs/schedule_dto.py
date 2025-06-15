@@ -1,5 +1,5 @@
-from pydantic import BaseModel, model_validator, field_validator
-from typing import Optional, Dict, Any, List
+from pydantic import BaseModel, model_validator, field_validator, field_serializer
+from typing import Optional, Dict, Any, List, Union
 from datetime import date, time, datetime
 
 class ScheduleBase(BaseModel):
@@ -65,11 +65,47 @@ class ScheduleUpdate(BaseModel):
                     raise ValueError(f"Invalid time format: {v}. Expected format: HH:MM:SS or HH:MM")
         return v
 
-class ScheduleResponse(ScheduleBase):
+class ScheduleResponse(BaseModel):
     id: int
+    subjectId: int
+    roomId: Optional[int] = None
+    date: Optional[Union[date, str]] = None  # Accept either date object or string
+    startTime: Optional[time] = None
+    endTime: Optional[time] = None
+    status: Optional[str] = None
+    message: Optional[str] = None
     # Include group name information
     groupId: Optional[int] = None
     groupName: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "arbitrary_types_allowed": True  # Allow more flexible typing
+    }
+    
+    # Serialize date field correctly
+    @field_serializer('date')
+    def serialize_date(self, date_value: Optional[Union[date, str]]) -> Optional[str]:
+        """Convert date to string format or None"""
+        if date_value is None:
+            return None
+        if isinstance(date_value, str):
+            return date_value
+        if isinstance(date_value, date):
+            return date_value.isoformat()
+        return str(date_value)  # Fallback for any other type
+    
+    # Process incoming data before validation
+    @model_validator(mode='before')
+    @classmethod
+    def validate_dates(cls, data: Any) -> Any:
+        """Pre-process date fields to ensure compatibility"""
+        if isinstance(data, dict) and 'date' in data:
+            # Handle various null values
+            if data['date'] in (None, '', 'None', 'null'):
+                data['date'] = None
+            # Convert date objects to ISO format strings
+            elif isinstance(data['date'], date):
+                data['date'] = data['date'].isoformat()
+            # Keep strings as they are
+        return data

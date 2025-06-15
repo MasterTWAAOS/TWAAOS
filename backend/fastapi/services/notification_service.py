@@ -102,3 +102,18 @@ class NotificationService(INotificationService):
         notification.status = "citit"
         updated_notification = await self.notification_repository.update(notification)
         return NotificationResponse.model_validate(updated_notification)
+        
+    async def delete_all_notifications(self) -> int:
+        """Delete all notifications from the database
+        
+        Returns:
+            int: Number of notifications deleted
+        """
+        try:
+            # Call the repository method to delete all notifications
+            deleted_count = await self.notification_repository.delete_all()
+            return deleted_count
+        except Exception as e:
+            # Log the error and re-raise
+            print(f"Error deleting all notifications: {str(e)}")
+            raise

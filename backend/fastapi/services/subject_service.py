@@ -30,7 +30,23 @@ class SubjectService(ISubjectService):
     
     async def get_subjects_by_group_id(self, group_id: int) -> List[SubjectResponse]:
         subjects = await self.subject_repository.get_by_group_id(group_id)
-        return [SubjectResponse.model_validate(subject) for subject in subjects]
+        response_subjects = []
+        
+        for subject in subjects:
+            # Create base response using model_validate
+            subject_response = SubjectResponse.model_validate(subject)
+            
+            # Populate teacher information if available
+            if subject.teacherId:
+                # Get teacher information
+                teacher = await self.user_repository.get_by_id(subject.teacherId)
+                if teacher:
+                    subject_response.professorName = f"{teacher.firstName} {teacher.lastName}"
+                    subject_response.professorEmail = teacher.email if hasattr(teacher, 'email') else ''
+            
+            response_subjects.append(subject_response)
+            
+        return response_subjects
     
     async def get_subjects_by_teacher_id(self, teacher_id: int) -> List[SubjectResponse]:
         subjects = await self.subject_repository.get_by_teacher_id(teacher_id)
@@ -39,6 +55,17 @@ class SubjectService(ISubjectService):
     async def get_subjects_by_assistant_id(self, assistant_id: int) -> List[SubjectResponse]:
         subjects = await self.subject_repository.get_by_assistant_id(assistant_id)
         return [SubjectResponse.model_validate(subject) for subject in subjects]
+    
+    async def get_subject_with_teacher(self, subject_id: int):
+        """Get a subject with its teacher relationship loaded.
+        
+        Args:
+            subject_id (int): The ID of the subject to fetch
+            
+        Returns:
+            Subject: The subject with teacher relationship populated
+        """
+        return await self.subject_repository.get_subject_with_teacher(subject_id)
     
     async def update_teacher_for_group_subjects(self, group_id: int, teacher_id: int) -> int:
         """Update the teacherId for all subjects assigned to a specific group.

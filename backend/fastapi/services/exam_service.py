@@ -1,32 +1,149 @@
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
 import logging
+from datetime import datetime, date, time
 
 from models.DTOs.exam_dto import ExamResponse
+from models.DTOs.schedule_dto import ScheduleResponse
 from repositories.abstract.exam_repository_interface import IExamRepository
 from services.abstract.email_service_interface import IEmailService
 from services.abstract.notification_service_interface import INotificationService
 from services.abstract.user_service_interface import IUserService
 from services.abstract.subject_service_interface import ISubjectService
+from services.abstract.schedule_service_interface import IScheduleService
 from services.abstract.exam_service_interface import IExamService
+from services.abstract.config_service_interface import IConfigService
 from models.DTOs.notification_dto import NotificationCreate
 
 logger = logging.getLogger(__name__)
 
 class ExamService(IExamService):
-    """Service implementation for exam-related operations"""
+    """Implementation of IExamService interface"""
     
-    def __init__(self, 
-                 exam_repository: IExamRepository,
-                 email_service: Optional[IEmailService] = None,
-                 notification_service: Optional[INotificationService] = None,
-                 user_service: Optional[IUserService] = None,
-                 subject_service: Optional[ISubjectService] = None):
+    def __init__(
+        self, 
+        exam_repository: IExamRepository,
+        schedule_service: IScheduleService,
+        email_service: Optional[IEmailService] = None,
+        notification_service: Optional[INotificationService] = None,
+        user_service: Optional[IUserService] = None,
+        subject_service: Optional[ISubjectService] = None,
+        config_service: Optional[IConfigService] = None
+    ):
+        """Initialize with required repositories and services"""
         self.exam_repository = exam_repository
+        self.schedule_service = schedule_service
         self.email_service = email_service
         self.notification_service = notification_service
         self.user_service = user_service
         self.subject_service = subject_service
+        self.config_service = config_service
         
+    # Helper method to preprocess exam data before validation
+    def _preprocess_exam_data(self, exam_data: Dict) -> Dict:
+        """Preprocess exam data to ensure proper format for validation"""
+        processed_data = exam_data.copy()
+        
+        # Convert date objects to strings
+        if 'date' in processed_data and processed_data['date'] is not None:
+            if isinstance(processed_data['date'], date):
+                processed_data['date'] = processed_data['date'].isoformat()
+        
+        return processed_data
+        
+    async def _get_subject_ids_for_group(self, group_id: int) -> List[int]:
+        """Get all subject IDs associated with a specific group
+        
+        Args:
+            group_id (int): The group ID to find subjects for
+            
+        Returns:
+            List[int]: List of subject IDs for the group
+        """
+        # We'll use the subject service if available, otherwise fall back to repository
+        if self.subject_service:
+            # This uses the proper layered approach going through the subject service
+            subjects = await self.subject_service.get_subjects_by_group_id(group_id)
+            return [subject.id for subject in subjects]
+        else:
+            # Fallback to repository call if service not available
+            # Note: In production, you should ensure subject_service is always provided
+            logger.warning(f"[DEBUG] ExamService - Subject service not available, using repository fallback for group {group_id}")
+            return await self.exam_repository.get_subject_ids_by_group_id(group_id)
+    
+    async def _enrich_schedule_with_metadata(self, schedule: ScheduleResponse, subject_id: int, group_id: int) -> Dict[str, Any]:
+        """Enrich a schedule with additional metadata to create an exam response
+        
+        Args:
+            schedule: The schedule response from schedule service
+            subject_id: The subject ID for additional details
+            group_id: The group ID for additional details
+            
+        Returns:
+            Dict: Enriched exam data with all required fields
+        """
+        # Start with schedule data
+        # Handle date conversion explicitly
+        date_value = schedule.date
+        if isinstance(date_value, date):
+            date_value = date_value.isoformat()
+            
+        exam_data = {
+            "id": schedule.id,
+            "date": date_value,
+            "startTime": schedule.startTime,
+            "endTime": schedule.endTime,
+            "roomId": schedule.roomId,
+            "status": schedule.status,
+            "message": schedule.message
+        }
+        
+        # Get subject details
+        if self.subject_service:
+            subject = await self.subject_service.get_subject_by_id(subject_id)
+            if subject:
+                exam_data["subjectId"] = subject.id
+                exam_data["subjectName"] = subject.name
+                exam_data["subjectShortName"] = subject.shortName
+                
+                # Get teacher details from subject
+                if self.user_service and subject.teacherId:
+                    teacher = await self.user_service.get_user_by_id(subject.teacherId)
+                    if teacher:
+                        exam_data["teacherId"] = teacher.id
+                        exam_data["teacherName"] = f"{teacher.lastName} {teacher.firstName}"
+                        exam_data["teacherEmail"] = teacher.email
+                        exam_data["teacherPhone"] = teacher.phone
+        
+        # Get group details
+        if group_id:
+            # Use group repository or group service
+            group = None
+            if hasattr(self, 'group_service') and self.group_service:
+                group = await self.group_service.get_group_by_id(group_id)
+            
+            if group:
+                exam_data["groupId"] = group.id
+                exam_data["groupName"] = group.name
+                exam_data["specializationShortName"] = group.specializationShortName
+                exam_data["studyYear"] = group.studyYear
+            else:
+                # Fallback values if group details can't be retrieved
+                exam_data["groupId"] = group_id
+                exam_data["groupName"] = "Unknown Group"
+                exam_data["specializationShortName"] = "Unknown"
+                exam_data["studyYear"] = 0
+        
+        # Calculate duration if both startTime and endTime exist
+        if schedule.startTime and schedule.endTime:
+            hours_diff = schedule.endTime.hour - schedule.startTime.hour
+            if schedule.endTime.minute < schedule.startTime.minute:
+                hours_diff -= 1
+            exam_data["duration"] = max(1, hours_diff)  # Ensure at least 1 hour
+        else:
+            exam_data["duration"] = None
+            
+        return exam_data
+    
     async def get_all_exams(self) -> List[ExamResponse]:
         """Get all exams with associated information
         
@@ -39,10 +156,29 @@ class ExamService(IExamService):
             # Get exams with details from repository
             exam_data = await self.exam_repository.get_all_exams_with_details()
             
-            # Convert to DTO response models
-            exams = [ExamResponse.model_validate(exam) for exam in exam_data]
+            # Convert to DTO response models with proper error handling
+            exams = []
+            for exam in exam_data:
+                try:
+                    # If we encounter validation errors, we can try to sanitize the data
+                    exams.append(ExamResponse.model_validate(exam))
+                except Exception as validation_error:
+                    logger.warning(f"[DEBUG] ExamService - Validation error for exam ID {exam.get('id')}: {str(validation_error)}")
+                    # Try sanitizing the problematic fields
+                    sanitized_exam = exam.copy()
+                    # If date field is causing issues, convert explicitly to None
+                    if 'date' in sanitized_exam and sanitized_exam['date'] is not None:
+                        # Log the original date for debugging
+                        logger.info(f"[DEBUG] ExamService - Converting date from {sanitized_exam['date']} to None for exam ID {exam.get('id')}")
+                        sanitized_exam['date'] = None
+                    # Try validation again with sanitized data
+                    try:
+                        exams.append(ExamResponse.model_validate(sanitized_exam))
+                    except Exception as second_error:
+                        logger.error(f"[DEBUG] ExamService - Failed validation after sanitizing for exam ID {exam.get('id')}: {str(second_error)}")
+                        # Skip this exam rather than failing the entire request
             
-            logger.info(f"[DEBUG] ExamService - Returning {len(exams)} exams")
+            logger.info(f"[DEBUG] ExamService - Returning {len(exams)} exams after validation")
             return exams
             
         except Exception as e:
@@ -64,10 +200,29 @@ class ExamService(IExamService):
             # Get filtered exams from repository
             exam_data = await self.exam_repository.get_exams_by_study_program(program_code)
             
-            # Convert to DTO response models
-            exams = [ExamResponse.model_validate(exam) for exam in exam_data]
+            # Convert to DTO response models with proper error handling
+            exams = []
+            for exam in exam_data:
+                try:
+                    # If we encounter validation errors, we can try to sanitize the data
+                    exams.append(ExamResponse.model_validate(exam))
+                except Exception as validation_error:
+                    logger.warning(f"[DEBUG] ExamService - Validation error for exam ID {exam.get('id')}: {str(validation_error)}")
+                    # Try sanitizing the problematic fields
+                    sanitized_exam = exam.copy()
+                    # If date field is causing issues, convert explicitly to None
+                    if 'date' in sanitized_exam and sanitized_exam['date'] is not None:
+                        # Log the original date for debugging
+                        logger.info(f"[DEBUG] ExamService - Converting date from {sanitized_exam['date']} to None for exam ID {exam.get('id')}")
+                        sanitized_exam['date'] = None
+                    # Try validation again with sanitized data
+                    try:
+                        exams.append(ExamResponse.model_validate(sanitized_exam))
+                    except Exception as second_error:
+                        logger.error(f"[DEBUG] ExamService - Failed validation after sanitizing for exam ID {exam.get('id')}: {str(second_error)}")
+                        # Skip this exam rather than failing the entire request
             
-            logger.info(f"[DEBUG] ExamService - Returning {len(exams)} exams for program {program_code}")
+            logger.info(f"[DEBUG] ExamService - Returning {len(exams)} exams for program {program_code} after validation")
             return exams
             
         except Exception as e:
@@ -89,10 +244,29 @@ class ExamService(IExamService):
             # Get filtered exams from repository
             exam_data = await self.exam_repository.get_exams_by_teacher_id(teacher_id)
             
-            # Convert to DTO response models
-            exams = [ExamResponse.model_validate(exam) for exam in exam_data]
+            # Convert to DTO response models with proper error handling
+            exams = []
+            for exam in exam_data:
+                try:
+                    # If we encounter validation errors, we can try to sanitize the data
+                    exams.append(ExamResponse.model_validate(exam))
+                except Exception as validation_error:
+                    logger.warning(f"[DEBUG] ExamService - Validation error for exam ID {exam.get('id')}: {str(validation_error)}")
+                    # Try sanitizing the problematic fields
+                    sanitized_exam = exam.copy()
+                    # If date field is causing issues, convert explicitly to None
+                    if 'date' in sanitized_exam and sanitized_exam['date'] is not None:
+                        # Log the original date for debugging
+                        logger.info(f"[DEBUG] ExamService - Converting date from {sanitized_exam['date']} to None for exam ID {exam.get('id')}")
+                        sanitized_exam['date'] = None
+                    # Try validation again with sanitized data
+                    try:
+                        exams.append(ExamResponse.model_validate(sanitized_exam))
+                    except Exception as second_error:
+                        logger.error(f"[DEBUG] ExamService - Failed validation after sanitizing for exam ID {exam.get('id')}: {str(second_error)}")
+                        # Skip this exam rather than failing the entire request
             
-            logger.info(f"[DEBUG] ExamService - Returning {len(exams)} exams for teacher {teacher_id}")
+            logger.info(f"[DEBUG] ExamService - Returning {len(exams)} exams for teacher {teacher_id} after validation")
             return exams
             
         except Exception as e:
@@ -111,13 +285,32 @@ class ExamService(IExamService):
         logger.info(f"[DEBUG] ExamService - get_exams_by_group_id: {group_id}")
         
         try:
-            # Get filtered exams from repository
-            exam_data = await self.exam_repository.get_exams_by_group_id(group_id)
+            # First, get subject IDs for this group to identify relevant schedules
+            subject_ids = await self._get_subject_ids_for_group(group_id)
+            logger.info(f"[DEBUG] ExamService - Found {len(subject_ids)} subjects for group {group_id}")
             
-            # Convert to DTO response models
-            exams = [ExamResponse.model_validate(exam) for exam in exam_data]
+            # Get exam data by mapping through schedules from the schedule service
+            exams = []
+            for subject_id in subject_ids:
+                # Get schedules from the schedule service rather than directly from repository
+                schedules = await self.schedule_service.get_schedules_by_subject_id(subject_id)
+                
+                # Map each schedule to an exam response with additional metadata
+                for schedule in schedules:
+                    try:
+                        # Get required related data (subject, teacher, group info)
+                        exam_data = await self._enrich_schedule_with_metadata(schedule, subject_id, group_id)
+                        
+                        # Process data before validation
+                        processed_exam = self._preprocess_exam_data(exam_data)
+                        
+                        # Create ExamResponse
+                        exams.append(ExamResponse.model_validate(processed_exam))
+                    except Exception as e:
+                        logger.error(f"[DEBUG] ExamService - Error processing schedule for subject {subject_id}: {str(e)}")
+                        # Skip this schedule rather than failing the entire request
             
-            logger.info(f"[DEBUG] ExamService - Returning {len(exams)} exams for group {group_id}")
+            logger.info(f"[DEBUG] ExamService - Returning {len(exams)} exams for group {group_id} after processing")
             return exams
             
         except Exception as e:
@@ -140,9 +333,20 @@ class ExamService(IExamService):
             # Update exam in repository
             updated_exam_data = await self.exam_repository.update_exam(exam_id, exam_data)
             
-            # Convert to DTO response model
-            exam_response = ExamResponse.model_validate(updated_exam_data)
-            
+            # Convert to DTO response model with sanitization if needed
+            try:
+                exam_response = ExamResponse.model_validate(updated_exam_data)
+            except Exception as validation_error:
+                logger.warning(f"[DEBUG] ExamService - Validation error for updated exam {exam_id}: {str(validation_error)}")
+                # Try sanitizing the problematic fields
+                sanitized_exam = updated_exam_data.copy()
+                # If date field is causing issues, convert explicitly to None
+                if 'date' in sanitized_exam and sanitized_exam['date'] is not None:
+                    logger.info(f"[DEBUG] ExamService - Converting date from {sanitized_exam['date']} to None for exam ID {exam_id}")
+                    sanitized_exam['date'] = None
+                # Try validation again with sanitized data
+                exam_response = ExamResponse.model_validate(sanitized_exam)
+                
             logger.info(f"[DEBUG] ExamService - Successfully updated exam {exam_id}")
             return exam_response
             
@@ -191,14 +395,35 @@ class ExamService(IExamService):
                 # Add empty message field if not provided
                 proposal_data['message'] = None
                 
+            # Ensure we don't set default times if not provided
+            # This ensures that when SG users only set a date, no times will be added
+            if 'startTime' not in proposal_data or proposal_data['startTime'] is None:
+                proposal_data['startTime'] = None
+            if 'endTime' not in proposal_data or proposal_data['endTime'] is None:
+                proposal_data['endTime'] = None
+                
             # Create the exam proposal
             exam_data = await self.exam_repository.create_exam(proposal_data)
             
-            # Convert dictionary to ExamResponse if needed
-            if isinstance(exam_data, dict):
-                exam_response = ExamResponse.model_validate(exam_data)
+            # Preprocess data before validation to handle date objects
+            processed_exam_data = self._preprocess_exam_data(exam_data)
+            
+            # Convert dictionary to ExamResponse if needed with sanitization handling
+            if isinstance(processed_exam_data, dict):
+                try:
+                    exam_response = ExamResponse.model_validate(processed_exam_data)
+                except Exception as validation_error:
+                    logger.warning(f"[DEBUG] ExamService - Validation error for created exam: {str(validation_error)}")
+                    # Try sanitizing the problematic fields if preprocessing wasn't enough
+                    sanitized_exam = processed_exam_data.copy()
+                    # If date field is still causing issues, try to handle it differently
+                    if 'date' in sanitized_exam and sanitized_exam['date'] is not None:
+                        logger.info(f"[DEBUG] ExamService - Converting problematic date from {sanitized_exam['date']} to None as validation failed")
+                        sanitized_exam['date'] = None
+                    # Try validation again with sanitized data
+                    exam_response = ExamResponse.model_validate(sanitized_exam)
             else:
-                exam_response = exam_data
+                exam_response = processed_exam_data
             
             # Send notification to course director if all services are available
             if self.email_service and self.notification_service and self.user_service and self.subject_service:

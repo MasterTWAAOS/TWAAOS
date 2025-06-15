@@ -22,6 +22,9 @@ class SubjectUpdate(BaseModel):
 
 class SubjectResponse(SubjectBase):
     id: int
+    professorName: Optional[str] = None  # Add teacher name field
+    professorEmail: Optional[str] = None  # Add teacher email field
     
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True
+    }

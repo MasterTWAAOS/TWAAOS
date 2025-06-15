@@ -47,6 +47,18 @@ class ISubjectService(ABC):
     @abstractmethod
     async def validate_assistant_id(self, assistant_id: int) -> Tuple[bool, Optional[str]]:  
         pass
+    
+    @abstractmethod
+    async def get_subject_with_teacher(self, subject_id: int):
+        """Get a subject with its teacher relationship loaded.
+        
+        Args:
+            subject_id (int): The ID of the subject to fetch
+            
+        Returns:
+            Subject: The subject with teacher relationship populated
+        """
+        pass
 
     @abstractmethod
     async def create_subject(self, subject_data: SubjectCreate) -> SubjectResponse:

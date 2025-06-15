@@ -36,9 +36,9 @@
                     </div>
                   </template>
                 </Column>
-                <Column field="professor" header="Cadru Didactic" style="width: 30%">
+                <Column field="professorName" header="Cadru Didactic" style="width: 30%">
                   <template #body="slotProps">
-                    <div class="professor-name">{{ slotProps.data.professor || 'Indisponibil' }}</div>
+                    <div class="professor-name">{{ slotProps.data.professorName || 'Indisponibil' }}</div>
                   </template>
                 </Column>
                 <Column header="Acțiuni" style="width: 20%">
@@ -69,25 +69,33 @@
               <div class="status-item">
                 <div class="status-number">{{ proposalStats.pending }}</div>
                 <div class="status-label">În așteptare</div>
-                <ProgressBar :value="proposalStats.pendingPercentage" class="status-progress" severity="warning" />
+                <ProgressBar :value="proposalStats.pendingPercentage" class="status-progress" severity="warning">
+                  <template #value>{{ proposalStats.pendingPercentage.toFixed(2) }}%</template>
+                </ProgressBar>
               </div>
               
               <div class="status-item">
                 <div class="status-number">{{ proposalStats.proposed }}</div>
                 <div class="status-label">Propuse</div>
-                <ProgressBar :value="proposalStats.proposedPercentage" class="status-progress" severity="info" />
+                <ProgressBar :value="proposalStats.proposedPercentage" class="status-progress" severity="info">
+                  <template #value>{{ proposalStats.proposedPercentage.toFixed(2) }}%</template>
+                </ProgressBar>
               </div>
               
               <div class="status-item">
                 <div class="status-number">{{ proposalStats.approved }}</div>
                 <div class="status-label">Aprobate</div>
-                <ProgressBar :value="proposalStats.approvedPercentage" class="status-progress" severity="success" />
+                <ProgressBar :value="proposalStats.approvedPercentage" class="status-progress" severity="success">
+                  <template #value>{{ proposalStats.approvedPercentage.toFixed(2) }}%</template>
+                </ProgressBar>
               </div>
               
               <div class="status-item">
                 <div class="status-number">{{ proposalStats.rejected }}</div>
                 <div class="status-label">Respinse</div>
-                <ProgressBar :value="proposalStats.rejectedPercentage" class="status-progress" severity="danger" />
+                <ProgressBar :value="proposalStats.rejectedPercentage" class="status-progress" severity="danger">
+                  <template #value>{{ proposalStats.rejectedPercentage.toFixed(2) }}%</template>
+                </ProgressBar>
               </div>
               
               <!-- Removed 'Nepropuse' category as it's not one of the standardized statuses -->
@@ -156,17 +164,6 @@
             <i class="pi pi-info-circle"></i> Ca reprezentant al grupei, trebuie să propui doar data examenului. Ora și alte detalii vor fi stabilite de profesor.
           </small>
         </div>
-        
-        <div class="p-field">
-          <label for="notes">Observații (opțional)</label>
-          <Textarea 
-            id="notes" 
-            v-model="proposeDialog.notes" 
-            rows="3" 
-            placeholder="Adăugați observații sau preferințe pentru acest examen"
-            :disabled="proposeDialog.loading"
-          />
-        </div>
       </div>
       
       <template #footer>
@@ -195,8 +192,8 @@
       <DataTable 
         :value="myProposals" 
         :paginator="true" 
-        :rows="5"
-        :rowsPerPageOptions="[5, 10, 20]"
+        :rows="10"
+        :rowsPerPageOptions="[10, 20]"
         responsiveLayout="scroll"
         class="p-datatable-striped"
         :loading="loading.myProposals"
@@ -205,8 +202,11 @@
         <Column field="date" header="Dată Propusă" :sortable="true">
           <template #body="slotProps">
             <div>
-              <div>{{ formatDate(slotProps.data.date) }}</div>
-              <div class="time-display">{{ slotProps.data.startTime }} - {{ slotProps.data.endTime }}</div>
+              <div v-if="slotProps.data.date">{{ formatDate(slotProps.data.date) }}</div>
+              <div v-else class="no-date-text">Nepropus</div>
+              <div class="time-display" v-if="slotProps.data.date && slotProps.data.startTime && slotProps.data.endTime">
+                {{ slotProps.data.startTime }} - {{ slotProps.data.endTime }}
+              </div>
             </div>
           </template>
         </Column>
@@ -215,11 +215,7 @@
             <Tag :value="slotProps.data.statusLabel" :severity="getStatusSeverity(slotProps.data.status)" />
           </template>
         </Column>
-        <Column field="submittedDate" header="Trimis la" :sortable="true" style="width: 15%">
-          <template #body="slotProps">
-            {{ formatDatetime(slotProps.data.submittedDate) }}
-          </template>
-        </Column>
+        <!-- Removed 'Trimis la' column as it's not needed -->
         <Column header="Acțiuni" style="width: 15%">
           <template #body="slotProps">
             <div class="action-buttons">
@@ -254,14 +250,11 @@ import Column from 'primevue/column'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import Calendar from 'primevue/calendar'
-import Dropdown from 'primevue/dropdown'
-import Textarea from 'primevue/textarea'
 import ProgressBar from 'primevue/progressbar'
 import ProgressSpinner from 'primevue/progressspinner'
 import Tag from 'primevue/tag'
 import apiClient from '../../services/api.service';
 import examService from '../../services/exam.service';
-import subjectService from '../../services/subject.service';
 import configService from '../../services/config.service';
 
 export default {
@@ -273,7 +266,6 @@ export default {
     Button,
     Dialog,
     Calendar,
-    Textarea,
     ProgressBar,
     ProgressSpinner,
     Tag
@@ -346,26 +338,67 @@ export default {
     
     // Proposal stats - using only the standardized statuses: pending, proposed, approved, rejected
     const proposalStats = computed(() => {
-      // Total subjects includes both pending subjects and existing proposals
-      const totalSubjects = pendingSubjects.value.length + myProposals.value.length
+      // DEBUG: Log the raw data we're working with
+      console.log('DEBUG - pendingSubjects:', pendingSubjects.value)
+      console.log('DEBUG - myProposals:', myProposals.value)
+      
+      // We need to identify unique subjects across both arrays
+      // First, get all subject IDs
+      const pendingSubjectIds = pendingSubjects.value.map(subject => subject.id)
+      const proposalSubjectIds = myProposals.value.map(proposal => proposal.subjectId)
+      
+      console.log('DEBUG - pendingSubjectIds:', pendingSubjectIds)
+      console.log('DEBUG - proposalSubjectIds:', proposalSubjectIds)
+      
+      // Get a unique count of actual subjects (to avoid double-counting)
+      const allSubjectIds = new Set([...pendingSubjectIds, ...proposalSubjectIds])
+      console.log('DEBUG - total unique subjects:', allSubjectIds.size)
+      
+      // Use the unique subject count for percentage calculations
+      const totalUniqueSubjects = allSubjectIds.size
       
       // Count subjects for each standardized status
-      const pending = myProposals.value.filter(p => p.status === 'pending').length
+      const pending = pendingSubjects.value.length
       const proposed = myProposals.value.filter(p => p.status === 'proposed').length
       const approved = myProposals.value.filter(p => p.status === 'approved').length
       const rejected = myProposals.value.filter(p => p.status === 'rejected').length
       
-      // Calculate total and percentages
+      console.log('DEBUG - Counts:', { pending, proposed, approved, rejected, total: totalUniqueSubjects })
+      
+      // For percentage calculations, we need to use the number of proposed exams
+      // out of the total number of UNIQUE subjects
+      const calculatePercentage = (value) => {
+        // Fix the issue where percentages don't sum up correctly
+        // by explicitly using the totalUniqueSubjects
+        if (totalUniqueSubjects === 0) return 0
+        return parseFloat(((value / totalUniqueSubjects) * 100).toFixed(2))
+      }
+      
+      // Calculate the actual percentages
+      const pendingPercentage = calculatePercentage(pending)
+      const proposedPercentage = calculatePercentage(proposed) 
+      const approvedPercentage = calculatePercentage(approved)
+      const rejectedPercentage = calculatePercentage(rejected)
+      
+      // Log the percentage calculations for debugging
+      console.log('DEBUG - Percentages:', { 
+        pendingPercentage, 
+        proposedPercentage, 
+        approvedPercentage, 
+        rejectedPercentage,
+        sum: pendingPercentage + proposedPercentage + approvedPercentage + rejectedPercentage
+      })
+      
       return {
-        totalSubjects,
+        totalSubjects: totalUniqueSubjects,
         pending,
-        proposed,
+        proposed, 
         approved,
         rejected,
-        pendingPercentage: totalSubjects ? (pending / totalSubjects) * 100 : 0,
-        proposedPercentage: totalSubjects ? (proposed / totalSubjects) * 100 : 0,
-        approvedPercentage: totalSubjects ? (approved / totalSubjects) * 100 : 0,
-        rejectedPercentage: totalSubjects ? (rejected / totalSubjects) * 100 : 0
+        pendingPercentage,
+        proposedPercentage,
+        approvedPercentage,
+        rejectedPercentage
       }
     })
     
@@ -437,9 +470,8 @@ export default {
       try {
         proposeDialog.loading = true
         
-        // Set default start and end times (as SG only sets date)
-        const defaultStartTime = "09:00:00"
-        const defaultEndTime = "11:00:00"
+        // SG users only set the date, not times
+        // No default times should be set
         
         // Prepare the proposal data
         // Fix date offset by using local date formatting instead of UTC
@@ -458,8 +490,7 @@ export default {
         const proposalData = {
           subjectId: proposeDialog.subject.id,
           date: formattedDate,
-          startTime: defaultStartTime, // Using default time
-          endTime: defaultEndTime, // Using default time
+          // Do not include startTime and endTime
           notes: proposeDialog.notes,
           groupId: store.getters['auth/currentUser'].groupId // Make sure groupId is sent
         }
@@ -476,8 +507,9 @@ export default {
           date: proposeDialog.date instanceof Date ? 
             proposeDialog.date.toISOString() : 
             proposeDialog.date,
-          startTime: defaultStartTime,
-          endTime: defaultEndTime,
+          // No default start/end times
+          startTime: null,
+          endTime: null,
           status: 'pending',
           statusLabel: 'În așteptare',
           submittedDate: new Date().toISOString(),
@@ -564,18 +596,23 @@ export default {
         console.log('Processing pending subjects:', pendingData)
         
         // Map the subjects to the format needed for the UI
-        pendingSubjects.value = pendingData.map(subject => ({
-          id: subject.id,
-          name: subject.name,
-          code: subject.code,
-          professor: subject.professorName, 
-          professorId: subject.professorId,
-          semester: `Semestrul ${subject.semester}`,
-          // If the subject has an exam status, use it, otherwise treat as pending
-          status: subject.examStatus?.toLowerCase() || 'pending',
-          // Add debug info
-          needsProposal: subject.needsProposal || true
-        }))
+        pendingSubjects.value = pendingData.map(subject => {
+          console.log('Subject data:', subject); // Debug: Log the full subject object
+          
+          return {
+            id: subject.id,
+            name: subject.name,
+            code: subject.code || subject.shortName,
+            professor: subject.professorName, 
+            professorName: subject.professorName, // Add both fields to ensure compatibility
+            professorId: subject.professorId || subject.teacherId,
+            semester: subject.semester ? `Semestrul ${subject.semester}` : '',
+            // If the subject has an exam status, use it, otherwise treat as pending
+            status: subject.examStatus?.toLowerCase() || 'pending',
+            // Add debug info
+            needsProposal: subject.needsProposal || true
+          };
+        })
       } catch (error) {
         console.error('Error loading subjects:', error)
         
@@ -649,11 +686,14 @@ export default {
           
           console.log(`Exam ${proposal.id} original status: ${rawStatus}, mapped to: ${status}, ${statusLabel}`)
 
+          // Debug logging to see what data we're getting
+          console.log(`Proposal ${proposal.id} date:`, proposal.date, typeof proposal.date);
+          
           // Map the proposal data to our format
           return {
             id: proposal.id,
             subject: proposal.subjectName,
-            date: proposal.date,
+            date: proposal.date, // This should be properly parsed from backend
             startTime: proposal.startTime,
             endTime: proposal.endTime,
             status: status,
@@ -661,9 +701,9 @@ export default {
             submittedDate: proposal.submittedAt || new Date().toISOString(),
             comment: proposal.notes,
             rejectionReason: proposal.rejectionReason,
-            professorName: proposal.professorName,
+            professorName: proposal.teacherName || proposal.professorName,
             subjectId: proposal.subjectId,
-            professorId: proposal.professorId
+            professorId: proposal.teacherId || proposal.professorId
           };
         });
         
@@ -981,7 +1021,16 @@ export default {
       }
       
       .status-progress {
-        height: 0.5rem;
+        height: 1.25rem;
+        
+        :deep(.p-progressbar-value) {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-weight: 500;
+          font-size: 0.75rem;
+        }
       }
     }
   }

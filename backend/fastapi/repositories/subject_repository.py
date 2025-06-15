@@ -29,6 +29,26 @@ class SubjectRepository(ISubjectRepository):
         result = await self.db.execute(select(Subject).filter(Subject.teacherId == teacher_id))
         return result.scalars().all()
         
+    async def get_subject_with_teacher(self, subject_id: int) -> Optional[Subject]:
+        """Get a subject by ID with its teacher relationship loaded.
+        
+        Args:
+            subject_id (int): The subject ID
+            
+        Returns:
+            Optional[Subject]: The subject with teacher relationship or None
+        """
+        from sqlalchemy.orm import joinedload
+        from models.user import User
+        
+        # Use joinedload to eagerly load the teacher relationship
+        query = select(Subject).options(
+            joinedload(Subject.teacher)
+        ).filter(Subject.id == subject_id)
+        
+        result = await self.db.execute(query)
+        return result.scalars().first()
+        
     async def get_by_assistant_id(self, assistant_id: int) -> List[Subject]:
         # Use JSON containment to find subjects where the assistant ID is in the assistantIds array
         from sqlalchemy import text

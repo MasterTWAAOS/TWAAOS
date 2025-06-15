@@ -20,6 +20,18 @@ class ISubjectRepository(ABC):
         pass
         
     @abstractmethod
+    async def get_subject_with_teacher(self, subject_id: int) -> Optional[Subject]:
+        """Get a subject by ID with its teacher relationship loaded.
+        
+        Args:
+            subject_id (int): The subject ID
+            
+        Returns:
+            Optional[Subject]: The subject with teacher relationship or None
+        """
+        pass
+        
+    @abstractmethod
     async def get_by_assistant_id(self, assistant_id: int) -> List[Subject]:
         pass
         

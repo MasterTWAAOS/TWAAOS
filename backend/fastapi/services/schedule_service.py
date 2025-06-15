@@ -41,26 +41,200 @@ class ScheduleService(IScheduleService):
     async def get_schedule_by_id(self, schedule_id: int) -> Optional[ScheduleResponse]:
         schedule = await self.schedule_repository.get_by_id(schedule_id)
         if schedule:
-            return ScheduleResponse.model_validate(schedule)
+            try:
+                return ScheduleResponse.model_validate(schedule)
+            except Exception as e:
+                print(f"Validation error for schedule {schedule_id}: {e}")
+                try:
+                    # Convert schedule to dict if it's a SQLAlchemy model
+                    schedule_dict = {c.name: getattr(schedule, c.name) for c in schedule.__table__.columns}
+                    # Manually create response with safe values
+                    return ScheduleResponse(
+                        id=schedule_dict.get('id'),
+                        subjectId=schedule_dict.get('subjectId'),
+                        roomId=schedule_dict.get('roomId'),
+                        date=None,  # Set to None to avoid validation errors
+                        startTime=schedule_dict.get('startTime'),
+                        endTime=schedule_dict.get('endTime'),
+                        status=schedule_dict.get('status'),
+                        message=schedule_dict.get('message'),
+                        groupId=None,
+                        groupName=None
+                    )
+                except Exception as inner_e:
+                    print(f"Failed to create schedule response manually: {inner_e}")
+                    return None
         return None
     
     # Method removed since groupId and assistantId are no longer used in the schedules table
     
     async def get_schedules_by_room_id(self, room_id: int) -> List[ScheduleResponse]:
         schedules = await self.schedule_repository.get_by_room_id(room_id)
-        return [ScheduleResponse.model_validate(schedule) for schedule in schedules]
+        result = []
+        
+        # Handle potential validation errors
+        for schedule in schedules:
+            try:
+                # Try to validate the schedule
+                validated_schedule = ScheduleResponse.model_validate(schedule)
+                result.append(validated_schedule)
+            except Exception as e:
+                # If validation fails, sanitize the schedule data
+                print(f"Validation error for schedule: {e}")
+                try:
+                    # Convert schedule SQLAlchemy model to dict if needed
+                    schedule_dict = {c.name: getattr(schedule, c.name) for c in schedule.__table__.columns}
+                    # Create schedule response manually with safe values
+                    result.append(ScheduleResponse(
+                        id=schedule_dict.get('id'),
+                        subjectId=schedule_dict.get('subjectId'),
+                        roomId=schedule_dict.get('roomId'),
+                        date=None,  # Set to None to avoid validation errors
+                        startTime=schedule_dict.get('startTime'),
+                        endTime=schedule_dict.get('endTime'),
+                        status=schedule_dict.get('status'),
+                        message=schedule_dict.get('message'),
+                        groupId=None,
+                        groupName=None
+                    ))
+                except Exception as inner_e:
+                    print(f"Failed to create schedule response manually: {inner_e}")
+                    # Skip this schedule
+        return result
     
     async def get_schedules_by_subject_id(self, subject_id: int) -> List[ScheduleResponse]:
         schedules = await self.schedule_repository.get_by_subject_id(subject_id)
-        return [ScheduleResponse.model_validate(schedule) for schedule in schedules]
+        result = []
+        
+        for schedule in schedules:
+            try:
+                # Preprocess data before validation
+                if hasattr(schedule, '__table__'):
+                    # For SQLAlchemy models
+                    schedule_dict = {c.name: getattr(schedule, c.name) for c in schedule.__table__.columns}
+                else:
+                    # For dictionaries
+                    schedule_dict = schedule
+                
+                # Convert date field explicitly to string to avoid validation errors
+                if 'date' in schedule_dict and schedule_dict['date'] is not None:
+                    if isinstance(schedule_dict['date'], date):
+                        schedule_dict['date'] = schedule_dict['date'].isoformat()
+                
+                # Try to validate the schedule with preprocessed data
+                validated_schedule = ScheduleResponse.model_validate(schedule_dict)
+                result.append(validated_schedule)
+            except Exception as e:
+                # If validation still fails, log error and create a sanitized version
+                print(f"Validation error for schedule: {e}")
+                try:
+                    # Ensure we have a dictionary to work with
+                    if hasattr(schedule, '__table__'):
+                        schedule_dict = {c.name: getattr(schedule, c.name) for c in schedule.__table__.columns}
+                    else:
+                        schedule_dict = schedule
+                    
+                    # Create schedule response manually with safe values
+                    result.append(ScheduleResponse(
+                        id=schedule_dict.get('id'),
+                        subjectId=schedule_dict.get('subjectId'),
+                        roomId=schedule_dict.get('roomId'),
+                        date=None,  # Set to None as last resort
+                        startTime=schedule_dict.get('startTime'),
+                        endTime=schedule_dict.get('endTime'),
+                        status=schedule_dict.get('status'),
+                        message=schedule_dict.get('message'),
+                        groupId=None,
+                        groupName=None
+                    ))
+                except Exception as inner_e:
+                    print(f"Failed to create schedule response manually: {inner_e}")
+                    # Skip this schedule
+        return result
     
     async def get_schedules_by_date(self, schedule_date: date) -> List[ScheduleResponse]:
         schedules = await self.schedule_repository.get_by_date(schedule_date)
-        return [ScheduleResponse.model_validate(schedule) for schedule in schedules]
+        result = []
+        
+        for schedule in schedules:
+            try:
+                # Preprocess data before validation
+                if hasattr(schedule, '__table__'):
+                    # For SQLAlchemy models
+                    schedule_dict = {c.name: getattr(schedule, c.name) for c in schedule.__table__.columns}
+                else:
+                    # For dictionaries
+                    schedule_dict = schedule
+                
+                # Convert date field explicitly to string to avoid validation errors
+                if 'date' in schedule_dict and schedule_dict['date'] is not None:
+                    if isinstance(schedule_dict['date'], date):
+                        schedule_dict['date'] = schedule_dict['date'].isoformat()
+                
+                # Try to validate the schedule with preprocessed data
+                validated_schedule = ScheduleResponse.model_validate(schedule_dict)
+                result.append(validated_schedule)
+            except Exception as e:
+                # If validation still fails, log error and create a sanitized version
+                print(f"Validation error for schedule: {e}")
+                try:
+                    # Ensure we have a dictionary to work with
+                    if hasattr(schedule, '__table__'):
+                        schedule_dict = {c.name: getattr(schedule, c.name) for c in schedule.__table__.columns}
+                    else:
+                        schedule_dict = schedule
+                    
+                    # Create schedule response manually with safe values
+                    result.append(ScheduleResponse(
+                        id=schedule_dict.get('id'),
+                        subjectId=schedule_dict.get('subjectId'),
+                        roomId=schedule_dict.get('roomId'),
+                        date=None,  # Set to None as last resort
+                        startTime=schedule_dict.get('startTime'),
+                        endTime=schedule_dict.get('endTime'),
+                        status=schedule_dict.get('status'),
+                        message=schedule_dict.get('message'),
+                        groupId=None,
+                        groupName=None
+                    ))
+                except Exception as inner_e:
+                    print(f"Failed to create schedule response manually: {inner_e}")
+                    # Skip this schedule
+        return result
     
     async def get_schedules_by_status(self, status: str) -> List[ScheduleResponse]:
         schedules = await self.schedule_repository.get_by_status(status)
-        return [ScheduleResponse.model_validate(schedule) for schedule in schedules]
+        result = []
+        
+        # Handle potential validation errors
+        for schedule in schedules:
+            try:
+                # Try to validate the schedule
+                validated_schedule = ScheduleResponse.model_validate(schedule)
+                result.append(validated_schedule)
+            except Exception as e:
+                # If validation fails, sanitize the schedule data
+                print(f"Validation error for schedule: {e}")
+                try:
+                    # Convert schedule SQLAlchemy model to dict if needed
+                    schedule_dict = {c.name: getattr(schedule, c.name) for c in schedule.__table__.columns}
+                    # Create schedule response manually with safe values
+                    result.append(ScheduleResponse(
+                        id=schedule_dict.get('id'),
+                        subjectId=schedule_dict.get('subjectId'),
+                        roomId=schedule_dict.get('roomId'),
+                        date=None,  # Set to None to avoid validation errors
+                        startTime=schedule_dict.get('startTime'),
+                        endTime=schedule_dict.get('endTime'),
+                        status=schedule_dict.get('status'),
+                        message=schedule_dict.get('message'),
+                        groupId=None,
+                        groupName=None
+                    ))
+                except Exception as inner_e:
+                    print(f"Failed to create schedule response manually: {inner_e}")
+                    # Skip this schedule
+        return result
         
     async def delete_all_schedules(self) -> int:
         """Delete all schedules from the database

@@ -38,3 +38,12 @@ class INotificationService(ABC):
     @abstractmethod
     async def mark_as_read(self, notification_id: int) -> Optional[NotificationResponse]:
         pass
+
+    @abstractmethod
+    async def delete_all_notifications(self) -> int:
+        """Delete all notifications from the database
+        
+        Returns:
+            int: Number of notifications deleted
+        """
+        pass

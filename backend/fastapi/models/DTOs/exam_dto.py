@@ -1,5 +1,5 @@
-from typing import List, Optional
-from pydantic import BaseModel, Field
+from typing import List, Optional, Union, Any
+from pydantic import BaseModel, Field, validator, model_validator, field_serializer
 from datetime import date, time
 
 class ExamResponse(BaseModel):
@@ -14,7 +14,7 @@ class ExamResponse(BaseModel):
     teacherPhone: Optional[str]
     roomId: Optional[int] = None
     roomName: Optional[str] = None
-    date: Optional[date] = None
+    date: Optional[Union[date, str]] = None  # Accept either date object or string
     startTime: Optional[time] = None
     endTime: Optional[time] = None
     duration: Optional[int] = None  # calculated field in hours
@@ -28,8 +28,35 @@ class ExamResponse(BaseModel):
     studyYear: int
     
     model_config = {
-        "from_attributes": True
+        "from_attributes": True,
+        "validate_assignment": True,
+        "arbitrary_types_allowed": True  # Allow more flexible typing
     }
+    
+    # Serialize date field correctly
+    @field_serializer('date')
+    def serialize_date(self, date_value: Optional[Union[date, str]]) -> Optional[str]:
+        if date_value is None:
+            return None
+        if isinstance(date_value, str):
+            return date_value
+        if isinstance(date_value, date):
+            return date_value.isoformat()
+        return str(date_value)
+    
+    # Process incoming data before validation
+    @model_validator(mode='before')
+    @classmethod
+    def validate_dates(cls, data: Any) -> Any:
+        """Pre-process date fields to ensure compatibility"""
+        if isinstance(data, dict) and 'date' in data:
+            # Handle empty values
+            if data['date'] in (None, '', 'None', 'null'):
+                data['date'] = None
+            # If it's a date object, convert it to string (isoformat)
+            elif isinstance(data['date'], date):
+                data['date'] = data['date'].isoformat()
+        return data
 
 class ExamUpdateRequest(BaseModel):
     """Request model for updating exam information"""
@@ -61,8 +88,8 @@ class ExamProposalRequest(BaseModel):
     """Request model for student group leader proposing an exam date"""
     subjectId: int
     date: date
-    startTime: time
-    endTime: time
+    startTime: Optional[time] = None
+    endTime: Optional[time] = None
     groupId: int
     notes: Optional[str] = None
     

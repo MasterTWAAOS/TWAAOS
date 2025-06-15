@@ -244,6 +244,35 @@ class ExamRepository(IExamRepository):
             logger.error(f"[DEBUG] ExamRepository - Error in get_exams_by_group_id: {str(e)}")
             raise
             
+    async def get_subject_ids_by_group_id(self, group_id: int) -> List[int]:
+        """Get all subject IDs for a specific group
+        
+        Args:
+            group_id (int): ID of the group
+            
+        Returns:
+            List[int]: List of subject IDs for the group
+        """
+        logger.info(f"[DEBUG] ExamRepository - get_subject_ids_by_group_id: {group_id}")
+        
+        try:
+            # Get subjects for the specified group using a join query
+            query = (
+                select(Subject.id)
+                .join(Subject.group)
+                .where(Group.id == group_id)
+            )
+            
+            result = await self.db.execute(query)
+            subject_ids = [row[0] for row in result.all()]
+            
+            logger.info(f"[DEBUG] ExamRepository - Found {len(subject_ids)} subjects for group {group_id}")
+            return subject_ids
+            
+        except Exception as e:
+            logger.error(f"[DEBUG] ExamRepository - Error in get_subject_ids_by_group_id: {str(e)}")
+            raise
+            
     async def update_exam(self, exam_id: int, exam_data: Dict[str, Any]) -> Dict[str, Any]:
         """Update an exam with new information
         
