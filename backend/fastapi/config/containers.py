@@ -139,13 +139,19 @@ class Container(containers.DeclarativeContainer):
         room_repository=room_repository
     )
     
+    email_service = providers.Factory(
+        EmailService,
+        user_service=user_service
+    )
+    
     schedule_service = providers.Factory(
         ScheduleService,
         schedule_repository=schedule_repository,
         subject_repository=subject_repository,
         user_repository=user_repository,
         room_repository=room_repository,
-        group_repository=group_repository
+        group_repository=group_repository,
+        email_service=email_service
     )
     
     notification_service = providers.Factory(
@@ -173,11 +179,6 @@ class Container(containers.DeclarativeContainer):
         subject_service=subject_service,
         schedule_service=schedule_service,
         notification_service=notification_service
-    )
-    
-    email_service = providers.Factory(
-        EmailService,
-        user_service=user_service
     )
     
     config_service = providers.Factory(

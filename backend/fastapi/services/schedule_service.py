@@ -12,6 +12,7 @@ from repositories.abstract.subject_repository_interface import ISubjectRepositor
 from repositories.abstract.user_repository_interface import IUserRepository
 from repositories.abstract.room_repository_interface import IRoomRepository
 from repositories.abstract.group_repository_interface import IGroupRepository
+from services.abstract.email_service_interface import IEmailService
 from services.abstract.schedule_service_interface import IScheduleService
 
 class ScheduleService(IScheduleService):
@@ -23,16 +24,15 @@ class ScheduleService(IScheduleService):
         'rejected'       # Rejected by course director
     }
     
-    def __init__(self, schedule_repository: IScheduleRepository,
-                 subject_repository: ISubjectRepository,
-                 user_repository: IUserRepository,
-                 room_repository: IRoomRepository,
-                 group_repository: IGroupRepository):
+    def __init__(self, schedule_repository: IScheduleRepository, subject_repository: ISubjectRepository,
+                 user_repository: IUserRepository, room_repository: IRoomRepository,
+                 group_repository: IGroupRepository, email_service: Optional[IEmailService] = None):
         self.schedule_repository = schedule_repository
         self.subject_repository = subject_repository
         self.user_repository = user_repository
         self.room_repository = room_repository
         self.group_repository = group_repository
+        self.email_service = email_service
 
     async def get_all_schedules(self) -> List[ScheduleResponse]:
         schedules = await self.schedule_repository.get_all()
@@ -633,7 +633,8 @@ class ScheduleService(IScheduleService):
         }
     
     async def send_notification_email(self, schedule_id: int, recipient_email: str, subject: str, message: str) -> bool:
-        """Send notification email for schedule changes.
+        """
+        Send notification email for schedule changes.
         
         Args:
             schedule_id: The ID of the schedule
@@ -644,18 +645,37 @@ class ScheduleService(IScheduleService):
         Returns:
             True if email was sent successfully, False otherwise
         """
-        # In a real implementation, this would use an email service/client
-        # For now, we'll just log the email that would be sent
-        logger.info(f"[EMAIL] Would send email for schedule {schedule_id} to {recipient_email}:")
+        # Log the email attempt for debugging
+        logger.info(f"[EMAIL] Attempting to send email for schedule {schedule_id} to {recipient_email}")
         logger.info(f"[EMAIL] Subject: {subject}")
-        logger.info(f"[EMAIL] Message: {message}")
         
-        # Here you would implement actual email sending logic
-        # For example:
-        # from services.email_service import send_email
-        # return await send_email(recipient_email, subject, message)
-        
-        return True
+        # Check if email service is available
+        if not self.email_service:
+            logger.warning(f"[EMAIL] Email service not available for schedule {schedule_id}. Email not sent.")
+            return False
+            
+        try:
+            # Convert plain text to HTML for better email formatting (if needed)
+            html_content = message.replace('\n', '<br>')
+            
+            # Use the email service to send the email
+            result = await self.email_service.send_email(
+                to_email=recipient_email, 
+                subject=subject,
+                content=html_content
+            )
+            
+            if result:
+                logger.info(f"[EMAIL] Successfully sent email for schedule {schedule_id} to {recipient_email}")
+            else:
+                logger.error(f"[EMAIL] Failed to send email for schedule {schedule_id} to {recipient_email}")
+                
+            return result
+        except Exception as e:
+            logger.error(f"[EMAIL] Error sending email for schedule {schedule_id}: {str(e)}")
+            # Don't re-raise the exception to avoid disrupting the main workflow
+            # The schedule update should still proceed even if email notification fails
+            return False
     
     async def update_schedule(self, schedule_id: int, schedule_data: ScheduleUpdate) -> Optional[ScheduleResponse]:
         schedule = await self.schedule_repository.get_by_id(schedule_id)
@@ -763,31 +783,73 @@ class ScheduleService(IScheduleService):
             schedule.status = schedule_data.status
             
             # Handle special actions based on status changes
-            if schedule_data.status == 'rejected' and schedule_data.sendEmail:
-                # Send rejection notification to SG
+            if schedule_data.sendEmail:
+                # Get subject and group information
                 subject = await self.subject_repository.get_by_id(schedule.subjectId)
-                if subject:
+                if subject and subject.groupId:
                     group = await self.group_repository.get_by_id(subject.groupId)
                     if group:
-                        # Find SG user for this group
-                        sg_users = await self.user_repository.get_by_role_and_group('SG', group.id)
-                        for sg_user in sg_users:
-                            if sg_user.email:
-                                # Send notification email
-                                subject_line = f"Proposed exam date rejected: {subject.name}"
-                                message = f"Dear {sg_user.name},\n\nYour proposed exam date for {subject.name} has been rejected."
-                                
-                                if schedule_data.reason:
-                                    message += f"\n\nReason: {schedule_data.reason}"
-                                    
-                                message += "\n\nPlease propose a new date.\n\nRegards,\nExam Management System"
-                                
-                                await self.send_notification_email(
-                                    schedule_id, 
-                                    sg_user.email, 
-                                    subject_line, 
-                                    message
-                                )
+                        try:
+                            # Find SG user for this group - use get_by_id and filter manually if get_by_role_and_group doesn't exist
+                            sg_users = []
+                            # Get all users and filter by role and group
+                            all_users = await self.user_repository.get_all()
+                            sg_users = [user for user in all_users if user.role == 'SG' and user.groupId == group.id]
+                            
+                            # Common email setup values
+                            room_names = []
+                            for room_id in schedule.get_room_ids():
+                                room = await self.room_repository.get_by_id(room_id)
+                                if room:
+                                    room_names.append(room.name)
+                            
+                            rooms_text = ", ".join(room_names) if room_names else "nicio sală alocată încă"
+                            exam_date = schedule.date.strftime("%d/%m/%Y") if hasattr(schedule.date, "strftime") else schedule.date
+                            
+                            # Send appropriate email based on status
+                            if schedule_data.status == 'approved':
+                                # Send approval notification
+                                for sg_user in sg_users:
+                                    if sg_user.email:
+                                        subject_line = f"Propunere de examen aprobată: {subject.name}"
+                                        message = f"Stimate {sg_user.firstName or ''} {sg_user.lastName or ''},\n\n"
+                                        message += f"Propunerea dvs. pentru examenul la disciplina {subject.name} a fost aprobată.\n\n"
+                                        message += f"Detalii:\n"
+                                        message += f"- Dată: {exam_date}\n"
+                                        message += f"- Ora: {schedule.startTime} - {schedule.endTime}\n"
+                                        message += f"- Săli: {rooms_text}\n\n"
+                                        message += f"Cu stimă,\nSistemul de Management al Examenelor"
+                                        
+                                        await self.send_notification_email(
+                                            schedule_id, 
+                                            sg_user.email, 
+                                            subject_line, 
+                                            message
+                                        )
+                                        
+                            elif schedule_data.status == 'rejected':
+                                # Send rejection notification
+                                for sg_user in sg_users:
+                                    if sg_user.email:
+                                        subject_line = f"Propunere de examen respinsă: {subject.name}"
+                                        message = f"Stimate {sg_user.firstName or ''} {sg_user.lastName or ''},\n\n"
+                                        message += f"Propunerea dvs. pentru examenul la disciplina {subject.name} a fost respinsă.\n\n"
+                                        
+                                        if schedule_data.reason:
+                                            message += f"Motiv: {schedule_data.reason}\n\n"
+                                            
+                                        message += f"Vă rugăm să propuneți o nouă dată pentru examen.\n\n"
+                                        message += f"Cu stimă,\nSistemul de Management al Examenelor"
+                                        
+                                        await self.send_notification_email(
+                                            schedule_id, 
+                                            sg_user.email, 
+                                            subject_line, 
+                                            message
+                                        )
+                        except Exception as e:
+                            logger.error(f"[ERROR] Failed to send email notification: {str(e)}")
+                            # Don't raise the exception - just log it so the API call still succeeds
         
         # Handle additional rooms and assistants
         # Since the Schedule model only supports one room directly, we'll store the primary room
@@ -808,7 +870,19 @@ class ScheduleService(IScheduleService):
             
         # Save changes to the main schedule record
         updated_schedule = await self.schedule_repository.update(schedule)
-        return ScheduleResponse.model_validate(updated_schedule)
+        
+        # Convert the Schedule object to dict for validation
+        # This helps us handle date formatting correctly
+        schedule_dict = {c.name: getattr(updated_schedule, c.name) for c in updated_schedule.__table__.columns}
+        
+        # Explicitly convert date to string to avoid validation issues
+        if schedule_dict.get('date') and isinstance(schedule_dict['date'], date):
+            schedule_dict['date'] = schedule_dict['date'].isoformat()
+            
+        # Add room IDs explicitly to the dict as it's a JSON type in the database
+        schedule_dict['roomIds'] = updated_schedule.get_room_ids()
+        
+        return ScheduleResponse.model_validate(schedule_dict)
 
     async def delete_schedule(self, schedule_id: int) -> bool:
         return await self.schedule_repository.delete(schedule_id)

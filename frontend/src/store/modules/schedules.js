@@ -168,7 +168,8 @@ const actions = {
         assistantIds: approvalData.assistantIds,
         startTime: approvalData.startTime,
         endTime: approvalData.endTime,
-        comments: approvalData.comments
+        comments: approvalData.comments,
+        sendEmail: approvalData.sendEmail || true // Ensure sendEmail is always passed
       }
       
       console.log('Sending approval data to API:', updateData);

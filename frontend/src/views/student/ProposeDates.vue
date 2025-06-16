@@ -115,8 +115,8 @@
               <i class="pi pi-calendar"></i>
               <p>Nu există examene programate în perioada imediat următoare.</p>
             </div>
-            <div v-else class="upcoming-exams">
-              <ul class="exam-list">
+            <div v-else class="upcoming-exams" style="display: flex; justify-content: center;">
+              <ul class="exam-list" style="width: 90%; max-width: 800px;">
                 <li v-for="exam in upcomingExams" :key="exam.id" class="exam-item">
                   <div class="exam-date">
                     <div class="date">{{ formatDate(exam.date) }}</div>
@@ -125,8 +125,20 @@
                   <div class="exam-details">
                     <div class="exam-subject">{{ exam.subject }}</div>
                     <div class="exam-info">
-                      <span class="location">Sala {{ exam.room }}</span>
-                      <Tag :value="exam.status" :severity="getStatusSeverity(exam.status)" />
+                      <span class="location">
+                        <template v-if="exam.roomIds && exam.roomIds.length > 0">
+                          <span v-if="exam.roomIds.length > 1">Săli: </span>
+                          <span v-else>Sala: </span>
+                          {{ formatRoomsList(exam.roomIds) }}
+                        </template>
+                        <template v-else-if="exam.room">
+                          Sala: {{ exam.room }}
+                        </template>
+                        <template v-else>
+                          Sala: nespecificată
+                        </template>
+                      </span>
+                      <!-- Removed status tag as all exams here are approved -->
                     </div>
                   </div>
                 </li>
@@ -244,6 +256,11 @@
 <script>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
+import { useToast } from 'primevue/usetoast'
+import examService from '@/services/exam.service'
+import RoomService from '@/services/room.service'
+import SubjectService from '@/services/subject.service'
+import ScheduleService from '@/services/schedule.service'
 import Card from 'primevue/card'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
@@ -254,7 +271,6 @@ import ProgressBar from 'primevue/progressbar'
 import ProgressSpinner from 'primevue/progressspinner'
 import Tag from 'primevue/tag'
 import apiClient from '../../services/api.service';
-import examService from '../../services/exam.service';
 import configService from '../../services/config.service';
 
 export default {
@@ -289,6 +305,9 @@ export default {
     
     // Upcoming exams
     const upcomingExams = ref([])
+    
+    // Cache for room data to avoid repeated API calls
+    const roomsCache = ref({})
     
     // Exam period from server
     const examPeriod = ref(null)
@@ -462,6 +481,42 @@ export default {
       proposeDialog.visible = true
     }
     
+    // Format room names from room objects or IDs
+    const formatRoomsList = (roomIds) => {
+      if (!roomIds || roomIds.length === 0) return 'nespecificată';
+      
+      // If roomIds is not an array, convert to string
+      if (!Array.isArray(roomIds)) {
+        return String(roomIds);
+      }
+      
+      // Extract room names from the array of room objects
+      const roomNames = roomIds.map(room => {
+        // If room is an object with name property
+        if (room && typeof room === 'object' && room.name) {
+          return room.name;
+        }
+        
+        // If room is an object with id property, look up in cache
+        if (room && typeof room === 'object' && room.id) {
+          const roomId = room.id;
+          if (roomsCache.value && roomsCache.value[roomId] && roomsCache.value[roomId].name) {
+            return roomsCache.value[roomId].name;
+          }
+          return `Sala ${roomId}`;
+        }
+        
+        // If room is just an ID, look up in cache
+        if (roomsCache.value && roomsCache.value[room] && roomsCache.value[room].name) {
+          return roomsCache.value[room].name;
+        }
+        return `Sala ${room}`;
+      });
+      
+      // Join room names with commas
+      return roomNames.join(', ');
+    }
+    
     // Submit proposal
     const submitProposal = async () => {
       if (!proposeDialog.date) {
@@ -603,7 +658,7 @@ export default {
         console.log('Processing pending subjects:', pendingData)
         
         // Map the subjects to the format needed for the UI
-        pendingSubjects.value = pendingData.map(subject => {
+        const mappedSubjects = pendingData.map(subject => {
           console.log('Subject data:', subject); // Debug: Log the full subject object
           
           return {
@@ -619,7 +674,16 @@ export default {
             // Add debug info
             needsProposal: subject.needsProposal || true
           };
-        })
+        });
+        
+        // Filter to only include subjects with pending status, not rejected ones
+        // This ensures subjects with rejected exams don't appear in this list
+        // They will still be visible in the "Propunerile Mele" section
+        pendingSubjects.value = mappedSubjects.filter(subject => 
+          subject.status !== 'rejected'
+        );
+        
+        console.log('Filtered pending subjects (excluding rejected):', pendingSubjects.value);
       } catch (error) {
         console.error('Error loading subjects:', error)
         
@@ -752,6 +816,8 @@ export default {
       }
     }
     
+    // Room service already imported at the top of the file
+
     // Load upcoming exams
     const loadUpcomingExams = async () => {
       try {
@@ -766,7 +832,7 @@ export default {
           store.dispatch('notifications/showNotification', {
             severity: 'error',
             summary: 'Eroare',
-            detail: 'Nu s-a putut determina grupa. Verificați autentificarea.',
+            detail: 'Nu s-a putut determina grupa. Verificaţi autentificarea.',
             life: 5000
           })
           loading.upcomingExams = false
@@ -777,6 +843,7 @@ export default {
         
         // Get upcoming exams for this group
         const response = await examService.getByGroup(groupId)
+        console.log('Raw exam data from backend:', response.data)
         
         // Filter to show only approved upcoming exams (those in the future)
         const now = new Date()
@@ -801,16 +868,82 @@ export default {
           // Take only the first 5
           .slice(0, 5)
         
-        // Map to the format needed by the view
-        upcomingExams.value = sortedExams.map(exam => ({
-          id: exam.id,
-          subject: exam.subjectName,
-          date: exam.date,
-          startTime: exam.startTime,
-          endTime: exam.endTime,
-          room: exam.roomName || 'TBA',
-          status: exam.approvalStatus?.toLowerCase() || 'pending'
+        console.log('Filtered exam data:', sortedExams)
+        
+        // Collect all room IDs for batch loading
+        const allRoomIds = new Set()
+        sortedExams.forEach(exam => {
+          // Check for both formats: roomIds as array or roomId as single value
+          if (exam.roomIds && Array.isArray(exam.roomIds)) {
+            exam.roomIds.forEach(id => allRoomIds.add(id))
+            console.log(`Exam ${exam.id} has multiple rooms:`, exam.roomIds)
+          } else if (exam.roomId) {
+            allRoomIds.add(exam.roomId)
+            console.log(`Exam ${exam.id} has single room:`, exam.roomId)
+          } else {
+            console.log(`Exam ${exam.id} has no rooms defined`)
+          }
+        })
+        
+        console.log('All room IDs to load:', Array.from(allRoomIds))
+
+        // Load room details if not already in cache
+        await Promise.all(Array.from(allRoomIds).map(async roomId => {
+          if (!roomsCache.value[roomId]) {
+            try {
+              const response = await RoomService.getById(roomId)
+              roomsCache.value[roomId] = response.data
+              console.log(`Loaded room data for ID ${roomId}:`, response.data)
+            } catch (err) {
+              console.error(`Error loading room ${roomId}:`, err)
+              // Create a placeholder for failed loads
+              roomsCache.value[roomId] = { id: roomId, name: `Sala ${roomId}` }
+            }
+          } else {
+            console.log(`Using cached room data for ID ${roomId}:`, roomsCache.value[roomId])
+          }
         }))
+        
+        // Map to the format needed by the view
+        upcomingExams.value = sortedExams.map(exam => {
+          // Handle different possible room data formats from backend
+          let roomsArray = [];
+          
+          if (exam.roomIds && Array.isArray(exam.roomIds)) {
+            // If roomIds is already an array of IDs, use it
+            roomsArray = exam.roomIds;
+          } else if (exam.roomId) {
+            // If there's a single roomId, make it an array
+            roomsArray = [exam.roomId];
+          }
+          
+          // Create room objects with names from the cache
+          const roomsWithNames = roomsArray.map(id => {
+            if (roomsCache.value[id]) {
+              return { id, name: roomsCache.value[id].name }
+            } else {
+              return { id, name: `Sala ${id}` } // Fallback
+            }
+          });
+          
+          console.log(`Exam ${exam.id} processed rooms:`, roomsWithNames)
+
+          return {
+            id: exam.id,
+            subject: exam.subjectName,
+            date: exam.date,
+            startTime: exam.startTime,
+            endTime: exam.endTime,
+            // Store room objects with names in the roomIds property
+            roomIds: roomsWithNames,
+            // Keep room for backwards compatibility
+            room: exam.roomName || '',
+            status: exam.approvalStatus?.toLowerCase() || 'pending'
+          }
+        })
+        
+        console.log('Final upcoming exams data:', upcomingExams.value)
+        
       } catch (error) {
         console.error('Error loading upcoming exams:', error)
       } finally {
@@ -820,6 +953,16 @@ export default {
     
     // Resubmit a rejected proposal
     const resubmitRejectedProposal = (proposal) => {
+      console.log('Resubmitting rejected proposal:', proposal)
+      
+      // Show notification with rejection reason
+      store.dispatch('notifications/showNotification', {
+        severity: 'info',
+        summary: 'Motiv Respingere',
+        detail: proposal.rejectionReason || 'Nu a fost oferit un motiv pentru respingere.',
+        life: 10000
+      })
+      
       // Find subject data from the rejected proposal
       const subjectData = {
         id: proposal.subjectId || 0,
@@ -830,12 +973,18 @@ export default {
         semester: proposal.semester || 'Semestrul X'
       }
       
+      // Set selected subject
+      selectedSubject.value = subjectData
+      
       // Open the proposal dialog with prefilled data
+      // proposeDialog is a reactive object (not a ref), so we update properties directly
       proposeDialog.subject = subjectData
-      proposeDialog.date = null
-      proposeDialog.startTime = null
-      proposeDialog.endTime = null
-      proposeDialog.notes = `Resubmitere după respingere. Motiv anterior: ${proposal.rejectionReason}`
+      proposeDialog.date = proposal.date ? new Date(proposal.date) : new Date()
+      proposeDialog.startTime = proposal.startTime || null
+      proposeDialog.endTime = proposal.endTime || null
+      proposeDialog.notes = `Resubmitere după respingere. Motiv anterior: ${proposal.rejectionReason || 'Fără motiv specificat'}`
+      proposeDialog.isResubmission = true // Flag to indicate this is a resubmission
+      proposeDialog.originalProposalId = proposal.id // Keep track of original proposal ID for logging
       proposeDialog.visible = true
       
       // Show the rejection reason in a notification to remind the student
@@ -917,7 +1066,7 @@ export default {
         }
       }
     }
-
+    
     // Initialize
     onMounted(() => {
       loadExamPeriod()
@@ -926,6 +1075,9 @@ export default {
       loadUpcomingExams()
     })
     
+    // The resubmitRejectedProposal function is already defined above
+    // No duplicate implementation needed here
+
     return {
       loading,
       pendingSubjects,
@@ -938,6 +1090,7 @@ export default {
       proposeDialog,
       startTimeOptions,
       endTimeOptions,
+      formatRoomsList,
       proposalStats,
       isProposalValid,
       formatDate,
@@ -947,7 +1100,8 @@ export default {
       openProposeDialog,
       submitProposal,
       loadExamPeriod,
-      hasActionableExams
+      hasActionableExams,
+      resubmitRejectedProposal
     }
   }
 }

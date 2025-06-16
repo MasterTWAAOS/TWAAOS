@@ -4,21 +4,9 @@
     
     <div class="filter-section p-card p-mb-3">
       <div class="p-grid">
-        <div class="p-col-12 p-md-3">
-          <div class="p-field">
-            <label for="statusFilter">Status</label>
-            <Dropdown 
-              id="statusFilter" 
-              v-model="filters.status" 
-              :options="statusOptions" 
-              optionLabel="name" 
-              placeholder="Toate statusurile"
-              class="w-full"
-            />
-          </div>
-        </div>
+        <!-- Removed status filter as all exams here should be in 'proposed' status -->
         
-        <div class="p-col-12 p-md-3">
+        <div class="p-col-12 p-md-6">
           <div class="p-field">
             <label for="groupFilter">Grupă</label>
             <Dropdown 
@@ -38,7 +26,7 @@
             <InputText 
               id="search" 
               v-model="filters.search" 
-              placeholder="Caută după codul disciplinei sau al sălii"
+              placeholder="Caută după codul disciplinei"
               class="w-full"
             />
           </div>
@@ -121,6 +109,7 @@
       header="Aprobare Propunere" 
       :style="{width: '650px'}"
       :modal="true"
+      :closable="false"
     >
       <div class="p-fluid">
         <div class="p-grid">
@@ -471,17 +460,15 @@ export default {
           return false
         }
         
-        // Filter by search term - search by subject shortName or room shortName
+        // Filter by search term - only search by subject code/shortName
         if (filters.search) {
           const searchTerm = filters.search.toLowerCase()
           const subject = subjectsCache.value[proposal.subject.id]
-          const room = proposal.room ? roomsCache.value[proposal.room.value] : null
           
+          // Only search in subject shortName (subject code)
           const subjectShortName = subject?.shortName?.toLowerCase() || ''
-          const roomShortName = room?.shortName?.toLowerCase() || ''
           
-          // Search in subject shortName or room shortName
-          if (!subjectShortName.includes(searchTerm) && !roomShortName.includes(searchTerm)) {
+          if (!subjectShortName.includes(searchTerm)) {
             return false
           }
         }
@@ -492,27 +479,24 @@ export default {
     
     // Check if approve form is valid
     const isApproveFormValid = computed(() => {
-      const { rooms, startTime, endTime, assistants, validationErrors } = dialogs.approve
+      const { rooms, startTime, endTime, validationErrors } = dialogs.approve
       
       // Debug values to help identify the issue
       console.log('[Debug] Form validation values:', {
         hasRooms: rooms && rooms.length > 0,
         hasTime: Boolean(startTime && endTime),
-        hasAssistants: assistants && assistants.length > 0,
         validationErrors,
         rooms,
         startTime,
-        endTime,
-        assistants
+        endTime
       })
       
+      // Modified to NOT require assistants - only rooms and time intervals are required
       return (
         rooms && rooms.length > 0 &&
         startTime && endTime &&
-        assistants && assistants.length > 0 &&
         !validationErrors.rooms &&
-        !validationErrors.timeInterval &&
-        !validationErrors.assistants
+        !validationErrors.timeInterval
       )
     })
     
@@ -866,7 +850,7 @@ export default {
           startTime: dialogs.approve.startTime,
           endTime: dialogs.approve.endTime,
           comments: '',  // Removed comments as per request
-          sendEmail: false // No email for approval
+          sendEmail: true // Enable email notification for approval
         }
         
         console.log('Approving proposal with data:', approvalData)
@@ -878,7 +862,7 @@ export default {
         })
         
         // Get current user from store
-        const currentUser = store.getters['auth/user']
+        const currentUser = store.getters['auth/user'] || {}
         
         // Update local data
         const index = proposals.value.findIndex(p => p.id === dialogs.approve.proposal.id)
@@ -889,13 +873,17 @@ export default {
             name: dialogs.approve.rooms[0].name
           }
           
+          // Create reviewer info safely even if currentUser is undefined
+          const reviewerName = currentUser.firstName && currentUser.lastName ? 
+            `${currentUser.firstName} ${currentUser.lastName}` : 'Administrator'
+          
           // Update the local proposal with the new data
           proposals.value[index] = {
             ...proposals.value[index],
             status: 'approved',
             reviewedBy: { 
-              name: currentUser.firstName + ' ' + currentUser.lastName, 
-              email: currentUser.email 
+              name: reviewerName, 
+              email: currentUser.email || ''
             },
             reviewDate: new Date().toISOString(),
             comments: updatedSchedule.comments || dialogs.approve.comments || '',
@@ -926,12 +914,24 @@ export default {
           life: 3000
         })
         
-        // Close dialog
-        dialogs.approve.visible = false
+        // Reset the dialog state first
+        dialogs.approve.proposal = null;
+        dialogs.approve.rooms = [];
+        dialogs.approve.startTime = null;
+        dialogs.approve.endTime = null;
+        dialogs.approve.assistants = [];
+        dialogs.approve.conflicts = [];
+        
+        // Close dialog - make sure this really happens
+        dialogs.approve.visible = false;
         
         // Refresh proposals list to ensure we have the latest data
-        loadProposals()
+        // Use setTimeout to ensure dialog closing completes first
+        setTimeout(() => {
+          loadProposals();
+        }, 100);
       } catch (error) {
+        console.error('Error approving proposal:', error);
         // Show error notification
         store.dispatch('notifications/showNotification', {
           severity: 'error',
@@ -962,8 +962,10 @@ export default {
         const rejectionData = {
           status: 'rejected', // Explicitly set status to rejected from proposed
           reason: dialogs.reject.reason,
-          sendEmail: true
+          sendEmail: true // Ensure we're sending an email
         }
+        
+        console.log('Rejecting proposal with data:', rejectionData)
         
         // Use store module to reject the proposal
         const updatedSchedule = await store.dispatch('schedules/rejectProposal', {
@@ -971,8 +973,12 @@ export default {
           rejectionData: rejectionData
         })
         
-        // Get current user from store
-        const currentUser = store.getters['auth/user']
+        // Get current user from store with fallback
+        const currentUser = store.getters['auth/user'] || {}
+        
+        // Create reviewer info safely even if currentUser is undefined
+        const reviewerName = currentUser.firstName && currentUser.lastName ? 
+          `${currentUser.firstName} ${currentUser.lastName}` : 'Administrator'
         
         // Update local data based on API response
         const index = proposals.value.findIndex(p => p.id === dialogs.reject.proposal.id)
@@ -981,8 +987,8 @@ export default {
             ...proposals.value[index],
             status: 'rejected',
             reviewedBy: { 
-              name: currentUser.firstName + ' ' + currentUser.lastName, 
-              email: currentUser.email 
+              name: reviewerName, 
+              email: currentUser.email || ''
             },
             rejectionReason: dialogs.reject.reason,
             reviewDate: new Date().toISOString()
@@ -997,9 +1003,20 @@ export default {
           life: 3000
         })
         
-        // Close dialog
-        dialogs.reject.visible = false
+        // Reset dialog data first
+        dialogs.reject.proposal = null;
+        dialogs.reject.reason = '';
+        
+        // Close dialog - make sure this really happens
+        dialogs.reject.visible = false;
+        
+        // Refresh proposals list to ensure we have the latest data
+        // Use setTimeout to ensure dialog closing completes first
+        setTimeout(() => {
+          loadProposals();
+        }, 100);
       } catch (error) {
+        console.error('Error rejecting proposal:', error);
         // Show error notification
         store.dispatch('notifications/showNotification', {
           severity: 'error',
@@ -1314,10 +1331,13 @@ export default {
         })
 
         // Also update roomOptions for other UI elements
-        roomOptions.value = availableRooms.value.map(room => ({
-          value: room.value,
-          name: room.name
-        }))
+        // Sort rooms alphabetically by name for better readability in the UI
+        roomOptions.value = availableRooms.value
+          .map(room => ({
+            value: room.value,
+            name: room.name
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name))
       } catch (error) {
         console.error('Error loading rooms:', error)
         store.dispatch('notifications/showNotification', {
