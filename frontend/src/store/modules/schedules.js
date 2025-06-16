@@ -160,20 +160,24 @@ const actions = {
   async approveProposal({ commit }, { scheduleId, approvalData }) {
     try {
       commit('SET_LOADING', true)
+      // Handle both formats: either approvalData with roomId + additionalRoomIds or just roomIds
       const updateData = {
         status: 'approved',
-        roomId: approvalData.roomIds[0], // Primary room
-        additionalRoomIds: approvalData.roomIds.slice(1), // Additional rooms if any
+        roomId: approvalData.roomId || (approvalData.roomIds && approvalData.roomIds[0]), // Primary room
+        additionalRoomIds: approvalData.additionalRoomIds || (approvalData.roomIds ? approvalData.roomIds.slice(1) : []), // Additional rooms if any
         assistantIds: approvalData.assistantIds,
         startTime: approvalData.startTime,
         endTime: approvalData.endTime,
         comments: approvalData.comments
       }
       
+      console.log('Sending approval data to API:', updateData);
+      
       const response = await apiClient.put(`/schedules/${scheduleId}`, updateData)
       commit('UPDATE_EXAM_SCHEDULE', { id: scheduleId, schedule: response.data })
       return response.data
     } catch (error) {
+      console.error('Error in approveProposal:', error);
       commit('SET_ERROR', error.message || 'Failed to approve proposal')
       throw error
     } finally {

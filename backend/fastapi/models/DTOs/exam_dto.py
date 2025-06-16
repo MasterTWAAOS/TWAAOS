@@ -12,8 +12,24 @@ class ExamResponse(BaseModel):
     teacherName: str
     teacherEmail: str
     teacherPhone: Optional[str]
+    roomIds: List[int] = Field(default_factory=list)
+    roomNames: List[str] = Field(default_factory=list)
+    # For backward compatibility
     roomId: Optional[int] = None
     roomName: Optional[str] = None
+    
+    @model_validator(mode='before')
+    @classmethod
+    def handle_room_ids(cls, data: Any) -> Any:
+        """Support both legacy roomId and new roomIds list"""
+        if isinstance(data, dict):
+            # If roomIds is missing but roomId is present, create roomIds from roomId
+            if 'roomId' in data and data['roomId'] and 'roomIds' not in data:
+                data['roomIds'] = [data['roomId']]
+            # Ensure roomIds is a list
+            if 'roomIds' in data and data['roomIds'] is None:
+                data['roomIds'] = []
+        return data
     date: Optional[Union[date, str]] = None  # Accept either date object or string
     startTime: Optional[time] = None
     endTime: Optional[time] = None
@@ -63,11 +79,23 @@ class ExamUpdateRequest(BaseModel):
     date: Optional[date] = None
     startTime: Optional[time] = None
     endTime: Optional[time] = None
+    roomIds: Optional[List[int]] = None
+    # For backward compatibility
     roomId: Optional[int] = None
     teacherId: Optional[int] = None
     groups: Optional[List[int]] = None
     status: Optional[str] = None
     notes: Optional[str] = None
+    
+    @model_validator(mode='before')
+    @classmethod
+    def handle_room_ids(cls, data: Any) -> Any:
+        """Support both legacy roomId and new roomIds list"""
+        if isinstance(data, dict):
+            # If roomIds is missing but roomId is present, create roomIds from roomId
+            if 'roomId' in data and data['roomId'] is not None and ('roomIds' not in data or not data.get('roomIds')):
+                data['roomIds'] = [data['roomId']]
+        return data
     
     model_config = {
         "json_schema_extra": {
@@ -75,7 +103,7 @@ class ExamUpdateRequest(BaseModel):
                 "date": "2025-06-15",
                 "startTime": "10:00:00",
                 "endTime": "12:00:00",
-                "roomId": 1,
+                "roomIds": [1, 2],
                 "teacherId": 5,
                 "groups": [1, 2, 3],
                 "status": "scheduled",

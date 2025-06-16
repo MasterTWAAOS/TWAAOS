@@ -1,5 +1,4 @@
 from sqlalchemy import Column, Integer, String
-from sqlalchemy.orm import relationship
 from models.base import Base
 
 class Room(Base):
@@ -12,5 +11,6 @@ class Room(Base):
     capacity = Column(Integer, nullable=False)
     computers = Column(Integer, nullable=False)
     
-    # Relationships
-    schedules = relationship("Schedule", back_populates="room")
+    # No direct ORM relationship with Schedule
+    # We're using a JSON array column in Schedule (roomIds), so we'll use repository methods
+    # instead of SQLAlchemy relationships

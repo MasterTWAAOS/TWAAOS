@@ -28,7 +28,10 @@ class ScheduleRepository(IScheduleRepository):
         return result.scalars().all()
     
     async def get_by_room_id(self, room_id: int) -> List[Schedule]:
-        result = await self.db.execute(select(Schedule).filter(Schedule.roomId == room_id))
+        # Need to query the JSON array column for containment
+        # Using the JSON containment operator to find schedules where roomIds contains the room_id
+        query = select(Schedule).filter(Schedule.roomIds.contains([room_id]))
+        result = await self.db.execute(query)
         return result.scalars().all()
     
     async def get_by_subject_id(self, subject_id: int) -> List[Schedule]:
@@ -127,11 +130,11 @@ class ScheduleRepository(IScheduleRepository):
                     stats["processed"] += 1
                     
                     # Create a new schedule for this subject with only the required subjectId
-                    # All other fields are set to None to utilize the nullable fields we've implemented
+                    # All other fields are set to None or default values to utilize the nullable fields we've implemented
                     # This supports the multi-role workflow where different roles progressively fill data
                     new_schedule = Schedule(
                         subjectId=subject.id,
-                        roomId=None,       # Nullable field - will be filled by appropriate role
+                        roomIds=[],        # Start with empty list of room IDs
                         date=None,         # Nullable field - will be filled by appropriate role
                         startTime=None,    # Nullable field - will be filled by appropriate role
                         endTime=None,      # Nullable field - will be filled by appropriate role

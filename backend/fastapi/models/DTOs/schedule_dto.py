@@ -4,7 +4,7 @@ from datetime import date, time, datetime
 
 class ScheduleBase(BaseModel):
     subjectId: int
-    roomId: Optional[int] = None
+    roomIds: Optional[List[int]] = None  # Store room IDs as a list
     date: Optional[date] = None
     startTime: Optional[time] = None
     endTime: Optional[time] = None
@@ -16,7 +16,7 @@ class ScheduleCreate(ScheduleBase):
 
 class ScheduleUpdate(BaseModel):
     subjectId: Optional[int] = None
-    roomId: Optional[int] = None  # Primary room (kept for backward compatibility)
+    roomIds: Optional[List[int]] = None  # List of room IDs
     date: Optional[date] = None
     startTime: Optional[time] = None
     endTime: Optional[time] = None
@@ -25,8 +25,10 @@ class ScheduleUpdate(BaseModel):
     comments: Optional[str] = None  # Additional comments
     message: Optional[str] = None  # CD message to SG about preferred dates
     
-    # New fields for CD functionality
+    # Keep these for backward compatibility with frontend
+    roomId: Optional[int] = None  # Primary room (kept for backward compatibility)
     additionalRoomIds: Optional[list[int]] = None  # Additional rooms for the exam
+    
     assistantIds: Optional[list[int]] = None  # Assistants assigned to the exam
     sendEmail: Optional[bool] = None  # Flag to trigger email notifications
     
@@ -37,19 +39,41 @@ class ScheduleUpdate(BaseModel):
         "json_schema_extra": {
             "example": {
                 "subjectId": 986,
-                "roomId": 1182,
-                "additionalRoomIds": [1183, 1184],
+                "roomIds": [1182, 1183, 1184],  # Updated to use roomIds
                 "assistantIds": [2001, 2002],
                 "date": "2025-07-10",
                 "startTime": "09:00:00",
                 "endTime": "11:00:00",
                 "status": "approved",
-                "comments": "Exam approved with multiple rooms",
                 "message": "Please schedule for early July if possible.",
                 "sendEmail": True
             }
         }
     }
+    
+    # Process incoming data - combine roomId and additionalRoomIds into roomIds
+    @model_validator(mode='before')
+    @classmethod
+    def combine_room_ids(cls, data):
+        if isinstance(data, dict):
+            # Initialize roomIds if not present
+            if 'roomIds' not in data or data['roomIds'] is None:
+                data['roomIds'] = []
+            
+            # Add primary roomId if provided
+            if 'roomId' in data and data['roomId'] is not None:
+                # Avoid duplication
+                if data['roomId'] not in data['roomIds']:
+                    data['roomIds'].append(data['roomId'])
+            
+            # Add additional room IDs if provided
+            if 'additionalRoomIds' in data and data['additionalRoomIds'] is not None:
+                for room_id in data['additionalRoomIds']:
+                    # Avoid duplication
+                    if room_id not in data['roomIds']:
+                        data['roomIds'].append(room_id)
+                        
+        return data
     
     # Time format validators using Pydantic V2 syntax
     @field_validator('startTime', 'endTime', mode='before')
@@ -68,7 +92,7 @@ class ScheduleUpdate(BaseModel):
 class ScheduleResponse(BaseModel):
     id: int
     subjectId: int
-    roomId: Optional[int] = None
+    roomIds: Optional[List[int]] = None  # List of room IDs
     date: Optional[Union[date, str]] = None  # Accept either date object or string
     startTime: Optional[time] = None
     endTime: Optional[time] = None
@@ -77,6 +101,9 @@ class ScheduleResponse(BaseModel):
     # Include group name information
     groupId: Optional[int] = None
     groupName: Optional[str] = None
+    
+    # For backward compatibility
+    roomId: Optional[int] = None
     
     model_config = {
         "from_attributes": True,
@@ -94,6 +121,22 @@ class ScheduleResponse(BaseModel):
         if isinstance(date_value, date):
             return date_value.isoformat()
         return str(date_value)  # Fallback for any other type
+    
+    # Set roomId for backward compatibility
+    @model_validator(mode='before')
+    @classmethod
+    def set_backward_compatible_room_id(cls, data):
+        """Set roomId from roomIds for backward compatibility"""
+        if isinstance(data, dict):
+            # If we have roomIds but no roomId
+            if 'roomIds' in data and data['roomIds'] and ('roomId' not in data or data['roomId'] is None):
+                # Set roomId to first room in roomIds list for backward compatibility
+                data['roomId'] = data['roomIds'][0]
+            # If we have roomId but no roomIds
+            elif 'roomId' in data and data['roomId'] is not None and ('roomIds' not in data or not data['roomIds']):
+                # Set roomIds to [roomId] for consistency
+                data['roomIds'] = [data['roomId']]
+        return data
     
     # Process incoming data before validation
     @model_validator(mode='before')

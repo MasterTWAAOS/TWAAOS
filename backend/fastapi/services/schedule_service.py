@@ -52,7 +52,7 @@ class ScheduleService(IScheduleService):
                     return ScheduleResponse(
                         id=schedule_dict.get('id'),
                         subjectId=schedule_dict.get('subjectId'),
-                        roomId=schedule_dict.get('roomId'),
+                        roomIds=schedule.get_room_ids() if hasattr(schedule, 'get_room_ids') else [],
                         date=None,  # Set to None to avoid validation errors
                         startTime=schedule_dict.get('startTime'),
                         endTime=schedule_dict.get('endTime'),
@@ -88,7 +88,7 @@ class ScheduleService(IScheduleService):
                     result.append(ScheduleResponse(
                         id=schedule_dict.get('id'),
                         subjectId=schedule_dict.get('subjectId'),
-                        roomId=schedule_dict.get('roomId'),
+                        roomIds=schedule.get_room_ids() if hasattr(schedule, 'get_room_ids') else [],
                         date=None,  # Set to None to avoid validation errors
                         startTime=schedule_dict.get('startTime'),
                         endTime=schedule_dict.get('endTime'),
@@ -413,9 +413,9 @@ class ScheduleService(IScheduleService):
         # Check if room exists
         room = await self.room_repository.get_by_id(room_id)
         if not room:
-            return False, f"Room with ID {room_id} does not exist"
-        return True, None
-        
+            return False, f"Room with ID {room_id} not found"
+            
+        return True, None       
     async def validate_group_id(self, group_id: int) -> Tuple[bool, Optional[str]]:
         """Validates if the group_id exists.
         
@@ -461,11 +461,16 @@ class ScheduleService(IScheduleService):
         if not is_valid:
             raise ValueError(error_message)
             
-        # Validate room ID
-        is_valid, error_message = await self.validate_room_id(schedule_data.roomId)
-        if not is_valid:
-            raise ValueError(error_message)
-            
+        # Validate room IDs - prepare room IDs list
+        room_ids = []
+        
+        # Add primary room if provided
+        if schedule_data.roomId is not None:
+            is_valid, error_message = await self.validate_room_id(schedule_data.roomId)
+            if not is_valid:
+                raise ValueError(error_message)
+            room_ids.append(schedule_data.roomId)
+                
         # Validate status
         is_valid, error_message = await self.validate_status(schedule_data.status)
         if not is_valid:
@@ -474,7 +479,7 @@ class ScheduleService(IScheduleService):
         # Create new schedule object
         schedule = Schedule(
             subjectId=schedule_data.subjectId,
-            roomId=schedule_data.roomId,
+            roomIds=room_ids,  
             date=schedule_data.date,
             startTime=schedule_data.startTime,
             endTime=schedule_data.endTime,
@@ -510,14 +515,16 @@ class ScheduleService(IScheduleService):
         for schedule in same_day_schedules:
             # Check for time overlap
             if (start_time < schedule.endTime and end_time > schedule.startTime):
-                # Check if any of the rooms conflict
-                if schedule.roomId in room_ids:
-                    room = await self.room_repository.get_by_id(schedule.roomId)
+                # Get the schedule's room IDs
+                schedule_room_ids = schedule.get_room_ids()
+                
+                # Check for any intersection between room_ids and schedule_room_ids
+                conflicting_rooms = set(room_ids).intersection(set(schedule_room_ids))
+                
+                for room_id in conflicting_rooms:
+                    room = await self.room_repository.get_by_id(room_id)
                     if room:
                         conflicts.append(f"Room {room.name} is already booked between {schedule.startTime} - {schedule.endTime}")
-                
-                # We would also check additional room relationships here if we had them in the database
-                # This would require a related table for additional rooms
         
         return len(conflicts) > 0, conflicts
         
@@ -594,22 +601,25 @@ class ScheduleService(IScheduleService):
                 # Check for time overlap
                 if (start_time_obj < schedule.endTime and end_time_obj > schedule.startTime):
                     # Check if any of the rooms conflict
-                    if schedule.roomId in room_ids:
-                        room = await self.room_repository.get_by_id(schedule.roomId)
-                        subject = None
-                        try:
-                            subject = await self.subject_repository.get_by_id(schedule.subjectId)
-                        except Exception:
-                            pass
-                        
-                        room_conflicts.append({
-                            "roomId": room.id,
-                            "roomName": room.name,
-                            "subjectId": schedule.subjectId,
-                            "subjectName": subject.name if subject else f"Subject {schedule.subjectId}",
-                            "startTime": schedule.startTime.isoformat(),
-                            "endTime": schedule.endTime.isoformat()
-                        })
+                    schedule_room_ids = schedule.get_room_ids()
+                    if schedule_room_ids and set(room_ids).intersection(set(schedule_room_ids)):
+                        conflicting_rooms = set(room_ids).intersection(set(schedule_room_ids))
+                        for room_id in conflicting_rooms:
+                            room = await self.room_repository.get_by_id(room_id)
+                            subject = None
+                            try:
+                                subject = await self.subject_repository.get_by_id(schedule.subjectId)
+                            except Exception:
+                                pass
+                            
+                            room_conflicts.append({
+                                "roomId": room.id,
+                                "roomName": room.name,
+                                "subjectId": schedule.subjectId,
+                                "subjectName": subject.name if subject else f"Subject {schedule.subjectId}",
+                                "startTime": schedule.startTime.isoformat(),
+                                "endTime": schedule.endTime.isoformat()
+                            })
         
         # For now, we'll return empty arrays for assistant and teacher conflicts
         # but with the proper structure for the frontend to handle
@@ -659,18 +669,25 @@ class ScheduleService(IScheduleService):
             is_valid, error_message = await self.validate_subject_id(schedule_data.subjectId)
             if not is_valid:
                 raise ValueError(error_message)
-                
+        
+        # Prepare room IDs list - combining roomId and additionalRoomIds if available
+        room_ids_to_set = []
+        
+        # Add primary room if provided
         if schedule_data.roomId is not None:
             is_valid, error_message = await self.validate_room_id(schedule_data.roomId)
             if not is_valid:
                 raise ValueError(error_message)
+            room_ids_to_set.append(schedule_data.roomId)
         
-        # Validate additional rooms if provided
+        # Add additional rooms if provided
         if schedule_data.additionalRoomIds is not None:
             for room_id in schedule_data.additionalRoomIds:
-                is_valid, error_message = await self.validate_room_id(room_id)
-                if not is_valid:
-                    raise ValueError(error_message)
+                if room_id not in room_ids_to_set:  # Avoid duplicates
+                    is_valid, error_message = await self.validate_room_id(room_id)
+                    if not is_valid:
+                        raise ValueError(error_message)
+                    room_ids_to_set.append(room_id)
         
         # Validate assistants if provided
         if schedule_data.assistantIds is not None:
@@ -690,16 +707,12 @@ class ScheduleService(IScheduleService):
             start_time_to_check = schedule_data.startTime or schedule.startTime
             end_time_to_check = schedule_data.endTime or schedule.endTime
             
-            # Get all rooms (primary + additional)
-            all_room_ids = []
-            if schedule_data.roomId is not None:
-                all_room_ids.append(schedule_data.roomId)
-            if schedule_data.additionalRoomIds:
-                all_room_ids.extend(schedule_data.additionalRoomIds)
-                
-            # If no rooms specified in update, use the existing room
-            if not all_room_ids and schedule.roomId:
-                all_room_ids.append(schedule.roomId)
+            # Get all rooms (from the combined roomId and additionalRoomIds)
+            all_room_ids = room_ids_to_set[:]
+            
+            # If no rooms specified in update, use the existing room IDs
+            if not all_room_ids and schedule.roomIds:
+                all_room_ids = schedule.get_room_ids()
             
             # Check room conflicts
             has_room_conflicts, room_conflict_msgs = await self.check_for_room_conflicts(
@@ -726,8 +739,10 @@ class ScheduleService(IScheduleService):
         if schedule_data.subjectId is not None:
             schedule.subjectId = schedule_data.subjectId
             
-        if schedule_data.roomId is not None:
-            schedule.roomId = schedule_data.roomId
+        # Set the roomIds field if we have room IDs to set
+        if room_ids_to_set:
+            logger.info(f"[DEBUG] Updating schedule {schedule_id} room IDs: {room_ids_to_set}")
+            schedule.roomIds = room_ids_to_set
             
         if schedule_data.date is not None:
             schedule.date = schedule_data.date
@@ -778,15 +793,7 @@ class ScheduleService(IScheduleService):
         # Since the Schedule model only supports one room directly, we'll store the primary room
         # in the Schedule and handle additional data differently
         
-        # For rooms - we use the primary roomId in the Schedule table and update any related records
-        # for additional rooms (in a production system, this would be in a relationship table)
-        if schedule_data.additionalRoomIds:
-            logger.info(f"[DEBUG] Additional rooms for schedule {schedule_id}: {schedule_data.additionalRoomIds}")
-            # In this implementation, we're limited by the database schema
-            # For a complete solution, we would need to create a schedule_rooms relationship table
-            # For now, just use the first additional room as the primary if no primary is specified
-            if schedule_data.roomId is None and schedule_data.additionalRoomIds:
-                schedule.roomId = schedule_data.additionalRoomIds[0]
+        # The roomIds field has already been handled above when we set schedule.roomIds = room_ids_to_set
         
         # For assistants - update the assistantIds in the Subject if needed
         if schedule_data.assistantIds:

@@ -192,18 +192,7 @@
             </div>
           </div>
 
-          <!-- Comentarii -->
-          <div class="p-col-12">
-            <div class="p-field p-mb-3">
-              <label for="approveComment">Comentarii (opțional)</label>
-              <Textarea 
-                id="approveComment" 
-                v-model="dialogs.approve.comments" 
-                rows="3" 
-                placeholder="Adăugați comentarii pentru propunere"
-              />
-            </div>
-          </div>
+          <!-- Removed Comments field as per request -->
 
           <!-- Conflict warnings -->
           <div class="p-col-12" v-if="dialogs.approve.conflicts.length > 0">
@@ -578,10 +567,11 @@ export default {
       }
     }
     
-    // Status helpers
+    // Status helpers - matching ProposeDates.vue implementation
     const getStatusLabel = (status) => {
       switch (status) {
         case 'pending': return 'În așteptare'
+        case 'proposed': return 'Propus'
         case 'approved': return 'Aprobat'
         case 'rejected': return 'Respins'
         default: return status
@@ -591,6 +581,7 @@ export default {
     const getStatusSeverity = (status) => {
       switch (status) {
         case 'pending': return 'warning'
+        case 'proposed': return 'info'
         case 'approved': return 'success'
         case 'rejected': return 'danger'
         default: return 'info'
@@ -874,7 +865,7 @@ export default {
           assistantIds: dialogs.approve.assistants.map(a => a.value),
           startTime: dialogs.approve.startTime,
           endTime: dialogs.approve.endTime,
-          comments: dialogs.approve.comments || '',
+          comments: '',  // Removed comments as per request
           sendEmail: false // No email for approval
         }
         

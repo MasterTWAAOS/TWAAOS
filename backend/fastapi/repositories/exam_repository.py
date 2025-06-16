@@ -75,8 +75,9 @@ class ExamRepository(IExamRepository):
                 select(Schedule)
                 .options(
                     joinedload(Schedule.subject).joinedload(Subject.group),
-                    joinedload(Schedule.subject).joinedload(Subject.teacher),
-                    joinedload(Schedule.room)
+                    joinedload(Schedule.subject).joinedload(Subject.teacher)
+                    # We no longer have a direct relationship between Schedule and Room
+                    # Instead, we have roomIds as a JSON array in Schedule
                 )
             )
             
@@ -105,13 +106,22 @@ class ExamRepository(IExamRepository):
                     logger.warning(f"[DEBUG] ExamRepository - Subject {subject.id} has no teacher relation")
                     continue
                     
-                # Handle nullable room relation
-                room = schedule.room
+                # Handle roomIds JSON array instead of direct room relation
+                room_ids = schedule.get_room_ids()  # Use helper method from Schedule model
                 room_id = None
                 room_name = None
-                if room:
-                    room_id = room.id
-                    room_name = room.name
+                
+                # For backward compatibility, we'll use the first room ID if available
+                if room_ids and len(room_ids) > 0:
+                    # Get the first room ID and fetch the room
+                    first_room_id = room_ids[0]
+                    room_query = select(Room).where(Room.id == first_room_id)
+                    room_result = await self.db.execute(room_query)
+                    room = room_result.scalar_one_or_none()
+                    
+                    if room:
+                        room_id = room.id
+                        room_name = room.name
                 
                 # Handle nullable start and end times
                 duration = None
@@ -138,8 +148,9 @@ class ExamRepository(IExamRepository):
                     "teacherName": f"{teacher.lastName} {teacher.firstName}",
                     "teacherEmail": teacher.email,
                     "teacherPhone": teacher.phone,
-                    "roomId": room_id,        # Using the nullable room_id variable
-                    "roomName": room_name,     # Using the nullable room_name variable
+                    "roomIds": schedule.get_room_ids(),  # New field with full list of room IDs
+                    "roomId": room_id,        # Keep for backward compatibility (first room or null)
+                    "roomName": room_name,     # Keep for backward compatibility (first room name or null)
                     "date": schedule.date,     # Nullable
                     "startTime": schedule.startTime, # Nullable
                     "endTime": schedule.endTime,   # Nullable

@@ -1,8 +1,8 @@
 """Create complete database schema
 
-Revision ID: e49dd7f6ac86
+Revision ID: bf0bcc27edbd
 Revises: 
-Create Date: 2025-06-14 19:08:12.122041
+Create Date: 2025-06-16 19:18:23.363724
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'e49dd7f6ac86'
+revision = 'bf0bcc27edbd'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -102,13 +102,12 @@ def upgrade() -> None:
     op.create_table('schedules',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('subjectId', sa.Integer(), nullable=False),
-    sa.Column('roomId', sa.Integer(), nullable=True),
+    sa.Column('roomIds', sa.JSON(), nullable=True),
     sa.Column('date', sa.Date(), nullable=True),
     sa.Column('startTime', sa.Time(), nullable=True),
     sa.Column('endTime', sa.Time(), nullable=True),
     sa.Column('status', sa.String(), nullable=True),
     sa.Column('message', sa.String(length=200), nullable=True),
-    sa.ForeignKeyConstraint(['roomId'], ['rooms.id'], ),
     sa.ForeignKeyConstraint(['subjectId'], ['subjects.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
