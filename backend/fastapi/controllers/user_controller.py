@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List, Optional
+from typing import List, Optional, Dict
 from dependency_injector.wiring import inject, Provide
 
 from models.DTOs.user_dto import UserCreate, UserUpdate, UserResponse
@@ -7,6 +7,19 @@ from services.abstract.user_service_interface import IUserService
 from config.containers import Container
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+@router.get("/count/professors", response_model=Dict[str, int], summary="Get professor count", description="Retrieve the total count of professors (users with CD role) in the system")
+@inject
+async def get_professor_count(
+    service: IUserService = Depends(Provide[Container.user_service])
+):
+    """Get the total count of professors.
+    
+    Returns:
+        Dict[str, int]: A dictionary containing the count of professors
+    """
+    count = await service.get_professor_count()
+    return {"count": count}
 
 @router.get("", response_model=List[UserResponse], summary="Get all users", description="Retrieve a list of all users in the system")
 @inject

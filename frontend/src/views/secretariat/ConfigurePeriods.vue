@@ -6,7 +6,7 @@
       <template #content>
         <p class="config-info">
           <i class="pi pi-info-circle"></i>
-          Configurați perioadele de examene pentru fiecare sesiune. Aceste perioade vor determina intervalul de timp 
+          Configurați perioada de examene și colocvii. Acestă perioadă va determina intervalul de timp 
           în care pot fi programate examenele și vor fi vizibile pentru toate rolurile din aplicație.
         </p>
         
@@ -134,8 +134,8 @@ export default {
     ConfirmDialog
   },
   setup() {
-    const store = useStore()
-    const confirm = useConfirm()
+    const store = useStore(),
+          confirm = useConfirm()
     
     // Loading states
     const loading = reactive({
@@ -225,14 +225,16 @@ export default {
       const formattedStart = formatDate(period.startDate)
       const formattedEnd = formatDate(period.endDate)
       
-      confirm.require({
-        header: `Confirmare ștergere perioadă`,
-        message: `Sunteți sigur că doriți să ștergeți perioada ${formattedStart} - ${formattedEnd}?`,
-        icon: 'pi pi-exclamation-triangle',
-        acceptLabel: 'Da',
-        rejectLabel: 'Nu',
-        accept: async () => {
-          try {
+      // Use a setTimeout with 0 delay to break the event handling chain and prevent double triggering
+      setTimeout(() => {
+        confirm.require({
+          header: `Confirmare ștergere perioadă`,
+          message: `Sunteți sigur că doriți să ștergeți perioada ${formattedStart} - ${formattedEnd}?`,
+          icon: 'pi pi-exclamation-triangle',
+          acceptLabel: 'Da',
+          rejectLabel: 'Nu',
+          accept: async () => {
+            try {
             // Delete the period
             await configService.deleteConfig(period.id)
             
@@ -255,16 +257,16 @@ export default {
               life: 5000
             })
           }
-        }
-      })
+        }})
+      }, 0)
     }
     
     // Reset form
     const resetForm = () => {
-      v$.value.$reset()
-      editMode.value = false
-      editId.value = null
-      periodForm.dateRange = null
+      v$.value.$reset();
+      editMode.value = false;
+      editId.value = null;
+      periodForm.dateRange = null;
     }
     
     // Save period

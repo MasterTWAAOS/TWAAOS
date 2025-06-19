@@ -206,14 +206,16 @@ class ExamService(IExamService):
         logger.info("[DEBUG] ExamService - get_all_exams: Starting execution")
         
         try:
-            # Get exams with details from repository
+            # Get exams with details from repository - using the same repository method
+            # that's used successfully by the get_exams_by_teacher_id endpoint
             exam_data = await self.exam_repository.get_all_exams_with_details()
             
-            # Convert to DTO response models with proper error handling
+            # Convert to DTO response models with proper error handling - using the SAME
+            # approach as get_exams_by_teacher_id
             exams = []
             for exam in exam_data:
                 try:
-                    # If we encounter validation errors, we can try to sanitize the data
+                    # Simple direct model validation, just like in get_exams_by_teacher_id
                     exams.append(ExamResponse.model_validate(exam))
                 except Exception as validation_error:
                     logger.warning(f"[DEBUG] ExamService - Validation error for exam ID {exam.get('id')}: {str(validation_error)}")

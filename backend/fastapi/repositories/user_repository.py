@@ -3,6 +3,7 @@ from sqlalchemy import select, delete
 from typing import List, Optional
 
 from models.user import User
+from models.notification import Notification
 from repositories.abstract.user_repository_interface import IUserRepository
 
 class UserRepository(IUserRepository):
@@ -55,7 +56,10 @@ class UserRepository(IUserRepository):
 
     async def delete(self, user_id: int) -> bool:
         try:
-            # Execute direct SQL to avoid session caching issues
+            # First delete related notifications to avoid foreign key constraint violation
+            await self.db.execute(delete(Notification).where(Notification.userId == user_id))
+            
+            # Then delete the user
             result = await self.db.execute(delete(User).where(User.id == user_id))
             await self.db.commit()
             
@@ -64,7 +68,7 @@ class UserRepository(IUserRepository):
         except Exception as e:
             import logging
             logging.error(f"Error in user repository delete: {str(e)}")
-            # Consider rolling back explicitly on error
+            # Roll back explicitly on error
             await self.db.rollback()
             raise
         

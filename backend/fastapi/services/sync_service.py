@@ -2,9 +2,11 @@ from typing import Dict, List, Optional, Tuple, Any
 import httpx
 import asyncio
 import logging
+import os
 from passlib.context import CryptContext
 
 from models.user import User
+from models.DTOs.excel_template_dto import TemplateType
 from services.abstract.sync_service_interface import ISyncService
 from services.abstract.group_service_interface import IGroupService
 from services.abstract.room_service_interface import IRoomService
@@ -12,6 +14,7 @@ from services.abstract.user_service_interface import IUserService
 from services.abstract.subject_service_interface import ISubjectService
 from services.abstract.schedule_service_interface import IScheduleService
 from services.abstract.notification_service_interface import INotificationService
+from services.abstract.excel_template_service_interface import IExcelTemplateService
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +30,8 @@ class SyncService(ISyncService):
         user_service: IUserService,
         subject_service: ISubjectService,
         schedule_service: IScheduleService,
-        notification_service: INotificationService = None
+        notification_service: INotificationService = None,
+        excel_template_service: IExcelTemplateService = None
     ):
         self.group_service = group_service
         self.room_service = room_service
@@ -35,6 +39,7 @@ class SyncService(ISyncService):
         self.subject_service = subject_service
         self.schedule_service = schedule_service
         self.notification_service = notification_service
+        self.excel_template_service = excel_template_service
         
     async def delete_all_data(self) -> Dict[str, int]:
         """
@@ -418,6 +423,78 @@ class SyncService(ISyncService):
                 # If schedule creation fails, still return success for the main sync
                 logger.warning(f"Main sync succeeded but schedule population failed: {str(schedule_error)}")
                 result["schedules"]["error"] = str(schedule_error)
+            
+            # Step 5: Upload the template_SG.xlsx file for SG data
+            try:
+                if self.excel_template_service:
+                    logger.info("Step 5: Uploading template_SG.xlsx for student group leaders")
+                    
+                    # Check if the file exists
+                    template_path = os.path.join(os.getcwd(), "template_SG.xlsx")
+                    if os.path.exists(template_path):
+                        # Create a FastAPI compatible UploadFile object
+                        from fastapi import UploadFile
+                        import shutil
+                        
+                        class CustomUploadFile(UploadFile):
+                            def __init__(self, file_path: str):
+                                self.file_name = os.path.basename(file_path)
+                                self._file = open(file_path, "rb")
+                                self.file = self._file
+                            
+                            async def read(self):
+                                return self._file.read()
+                                
+                            def seek(self, offset: int):
+                                self._file.seek(offset)
+                        
+                        # Create file object
+                        file = CustomUploadFile(template_path)
+                        
+                        # Upload template with required parameters
+                        template = await self.excel_template_service.create_template(
+                            name="template_SG",
+                            file=file,
+                            template_type=TemplateType.sg,
+                            group_id=None,
+                            description="Template pentru încărcarea datelor despre șefii de grupă"
+                        )
+                        
+                        # Close the file
+                        file._file.close()
+                        
+                        if template:
+                            result["template_sg"] = {
+                                "success": True,
+                                "id": template.id,
+                                "message": "Template SG uploaded successfully"
+                            }
+                            logger.info(f"✅ Successfully uploaded template_SG.xlsx with ID {template.id}")
+                        else:
+                            result["template_sg"] = {
+                                "success": False,
+                                "message": "Failed to upload template_SG.xlsx: No template returned from service"
+                            }
+                            logger.warning("❌ Failed to upload template_SG.xlsx: No template returned from service")
+                    else:
+                        result["template_sg"] = {
+                            "success": False,
+                            "message": f"Template file not found at {template_path}"
+                        }
+                        logger.warning(f"❌ Template file not found at {template_path}")
+                else:
+                    result["template_sg"] = {
+                        "success": False,
+                        "message": "Excel template service not available"
+                    }
+                    logger.warning("❌ Excel template service not available for template upload")
+            except Exception as template_error:
+                # If template upload fails, still return success for the main sync
+                logger.warning(f"Main sync succeeded but template upload failed: {str(template_error)}")
+                result["template_sg"] = {
+                    "success": False,
+                    "message": f"Error uploading template: {str(template_error)}"
+                }
                 
             return result
         except Exception as e:

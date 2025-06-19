@@ -157,6 +157,15 @@ class UserService(IUserService):
         users = await self.user_repository.get_by_role(role)
         return [UserResponse.model_validate(user) for user in users]
         
+    async def get_professor_count(self) -> int:
+        """Get the total count of users with CD role (professors).
+        
+        Returns:
+            int: The total number of professors
+        """
+        professors = await self.user_repository.get_by_role('CD')
+        return len(professors)
+    
     async def search_users(self, first_name: Optional[str] = None, last_name: Optional[str] = None, role: Optional[str] = None) -> List[UserResponse]:
         """Search for users by name and role.
         

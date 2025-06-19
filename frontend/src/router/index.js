@@ -21,7 +21,6 @@ import DownloadReports from '@/views/secretariat/DownloadReports.vue'
 import UploadData from '@/views/secretariat/UploadData.vue'
 
 // Student Group Leader Views
-import SGDashboard from '@/views/student/Dashboard.vue'
 import SGProposeDates from '@/views/student/ProposeDates.vue'
 
 // Professor Views
@@ -91,11 +90,6 @@ const routes = [
         children: [
           {
             path: '',
-            name: 'SGDashboard',
-            component: SGDashboard
-          },
-          {
-            path: 'propose-dates',
             name: 'SGProposeDates',
             component: SGProposeDates
           }

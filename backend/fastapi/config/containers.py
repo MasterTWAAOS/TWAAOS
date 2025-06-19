@@ -178,7 +178,8 @@ class Container(containers.DeclarativeContainer):
         user_service=user_service,
         subject_service=subject_service,
         schedule_service=schedule_service,
-        notification_service=notification_service
+        notification_service=notification_service,
+        excel_template_service=excel_template_service
     )
     
     config_service = providers.Factory(

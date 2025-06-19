@@ -35,3 +35,12 @@ class IRoomService(ABC):
             int: The number of rooms deleted
         """
         pass
+        
+    @abstractmethod
+    async def get_room_count(self) -> int:
+        """Get the total count of rooms in the system.
+        
+        Returns:
+            int: The total number of rooms
+        """
+        pass

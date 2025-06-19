@@ -86,3 +86,12 @@ class GroupService(IGroupService):
             bool: True if the group exists, False otherwise
         """
         return await self.group_repository.exists_by_id(group_id)
+        
+    async def get_group_count(self) -> int:
+        """Get the total count of groups in the system.
+        
+        Returns:
+            int: The total number of groups
+        """
+        groups = await self.group_repository.get_all()
+        return len(groups)

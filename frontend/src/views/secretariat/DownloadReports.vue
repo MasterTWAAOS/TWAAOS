@@ -6,8 +6,8 @@
       <template #content>
         <p class="report-info p-mb-4">
           <i class="pi pi-info-circle"></i>
-          Generați și descărcați diverse rapoarte despre sesiunea de examene. Rapoartele pot fi exportate în 
-          formatele PDF, XLSX sau CSV în funcție de tipul raportului.
+          Generați și descărcați rapoarte de examene programate. Rapoartele pot fi exportate în 
+          formatele PDF și Excel.
         </p>
         
         <div class="p-grid p-m-0">

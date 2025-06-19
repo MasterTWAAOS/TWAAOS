@@ -45,6 +45,15 @@ class IGroupService(ABC):
         pass
         
     @abstractmethod
+    async def get_group_count(self) -> int:
+        """Get the total count of groups in the system.
+        
+        Returns:
+            int: The total number of groups
+        """
+        pass
+        
+    @abstractmethod
     async def exists_by_id(self, group_id: int) -> bool:
         """Check if a group exists by its ID.
         

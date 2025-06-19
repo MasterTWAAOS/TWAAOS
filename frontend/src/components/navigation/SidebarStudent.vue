@@ -4,15 +4,9 @@
     <div class="menu">
       <ul>
         <li>
-          <router-link :to="{ name: 'SGDashboard' }" class="menu-item">
+          <router-link :to="{ name: 'SGProposeDates' }" class="menu-item">
             <i class="pi pi-home"></i>
             <span>Dashboard</span>
-          </router-link>
-        </li>
-        <li>
-          <router-link :to="{ name: 'SGProposeDates' }" class="menu-item">
-            <i class="pi pi-calendar-plus"></i>
-            <span>Propunere Date Examene</span>
           </router-link>
         </li>
       </ul>

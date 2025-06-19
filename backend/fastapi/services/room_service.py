@@ -68,3 +68,12 @@ class RoomService(IRoomService):
             int: The number of rooms deleted
         """
         return await self.room_repository.delete_all()
+        
+    async def get_room_count(self) -> int:
+        """Get the total count of rooms in the system.
+        
+        Returns:
+            int: The total number of rooms
+        """
+        rooms = await self.room_repository.get_all()
+        return len(rooms)

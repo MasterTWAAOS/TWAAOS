@@ -10,25 +10,13 @@
             <h2><i class="pi pi-download"></i> Descărcare Template-uri</h2>
           </template>
           <template #content>
-            <p>Descărcați formatul Excel pentru a încărca liste de discipline, șefi de grupe sau săli disponibile.</p>
+            <p>Descărcați formatul Excel pentru a încărca liste cu șefi de grupe.</p>
             <div class="template-buttons">
-              <Button 
-                class="p-button-primary p-mb-2" 
-                icon="pi pi-file-excel" 
-                label="Template Discipline" 
-                @click="downloadTemplate('subjects')"
-              />
               <Button 
                 class="p-button-primary p-mb-2" 
                 icon="pi pi-file-excel" 
                 label="Template Șefi de Grupă" 
                 @click="downloadTemplate('group-leaders')"
-              />
-              <Button 
-                class="p-button-primary" 
-                icon="pi pi-file-excel" 
-                label="Template Săli" 
-                @click="downloadTemplate('rooms')"
               />
             </div>
           </template>
@@ -42,22 +30,7 @@
             <h2><i class="pi pi-upload"></i> Încărcare Fișiere</h2>
           </template>
           <template #content>
-            <p>Selectați și încărcați fișierele Excel cu datele necesare.</p>
-            
-            <div class="file-upload p-mb-3">
-              <h3>Discipline și Cadre Didactice</h3>
-              <FileUpload
-                mode="basic"
-                :customUpload="true"
-                @uploader="uploadSubjects"
-                accept=".xlsx,.xls"
-                :auto="true"
-                chooseLabel="Selectare fișier"
-              />
-              <small v-if="uploads.subjects.status" :class="getStatusClass(uploads.subjects.status)">
-                {{ uploads.subjects.message }}
-              </small>
-            </div>
+            <p>Selectați și încărcați fișierul Excel cu datele despre Șefii de Grupă.</p>
             
             <div class="file-upload p-mb-3">
               <h3>Șefi de Grupă</h3>
@@ -69,23 +42,8 @@
                 :auto="true"
                 chooseLabel="Selectare fișier"
               />
-              <small v-if="uploads.groupLeaders.status" :class="getStatusClass(uploads.groupLeaders.status)">
-                {{ uploads.groupLeaders.message }}
-              </small>
-            </div>
-            
-            <div class="file-upload">
-              <h3>Săli Disponibile</h3>
-              <FileUpload
-                mode="basic"
-                :customUpload="true"
-                @uploader="uploadRooms"
-                accept=".xlsx,.xls"
-                :auto="true"
-                chooseLabel="Selectare fișier"
-              />
-              <small v-if="uploads.rooms.status" :class="getStatusClass(uploads.rooms.status)">
-                {{ uploads.rooms.message }}
+              <small v-if="uploads?.groupLeaders?.status" :class="getStatusClass(uploads?.groupLeaders?.status)">
+                {{ uploads?.groupLeaders?.message || '' }}
               </small>
             </div>
           </template>
@@ -100,13 +58,12 @@
       </template>
       <template #content>
         <p>
-          Puteți sincroniza direct datele de la API-urile USV pentru a obține cele mai recente informații despre facultăți, 
-          programe de studii, grupe, săli și cadre didactice.
+          Această acțiune va sincroniza toate datele din API-urile USV: grupe, săli și cadre didactice.
         </p>
         
-        <div class="sync-status p-mb-3" v-if="syncStatus.all">
-          <i :class="[getSyncIconClass(syncStatus.all.success), 'sync-icon']"></i>
-          <span>{{ syncStatus.all.message }}</span>
+        <div class="sync-status p-mb-3" v-if="syncStatus?.all">
+          <i :class="[getSyncIconClass(syncStatus?.all?.success), 'sync-icon']"></i>
+          <span>{{ syncStatus?.all?.message || '' }}</span>
         </div>
         
         <div>
@@ -117,9 +74,6 @@
             :loading="syncing.all"
             class="p-button-success p-button-lg"
           />
-          <small class="p-d-block p-mt-2">
-            Această acțiune va sincroniza toate datele din API-urile USV: grupe, săli și cadre didactice.
-          </small>
         </div>
       </template>
     </Card>
@@ -134,30 +88,22 @@
           <div class="p-col-12 p-md-4">
             <div class="data-summary">
               <div class="data-title">Grupe</div>
-              <div class="data-count">{{ currentData.groups }}</div>
+              <div class="data-count">{{ currentData?.groups || 0 }}</div>
             </div>
           </div>
           <div class="p-col-12 p-md-4">
             <div class="data-summary">
               <div class="data-title">Săli</div>
-              <div class="data-count">{{ currentData.rooms }}</div>
+              <div class="data-count">{{ currentData?.rooms || 0 }}</div>
             </div>
           </div>
           <div class="p-col-12 p-md-4">
             <div class="data-summary">
               <div class="data-title">Cadre Didactice</div>
-              <div class="data-count">{{ currentData.professors }}</div>
+              <div class="data-count">{{ currentData?.professors || 0 }}</div>
             </div>
           </div>
         </div>
-        
-        <Button 
-          icon="pi pi-refresh" 
-          label="Actualizare" 
-          @click="refreshData"
-          :loading="loading.refreshData"
-          class="p-button-outlined p-mt-3"
-        />
       </template>
     </Card>
   </div>
@@ -207,10 +153,35 @@ export default defineComponent({
     
     // Current data summary
     const currentData = ref({
-      groups: 21,
-      rooms: 38,
-      professors: 47
+      groups: 0,
+      rooms: 0,
+      professors: 0
     })
+    
+    // Function to load current data counts from backend
+    const loadCurrentDataCounts = async () => {
+      try {
+        // Fetch all counts in parallel
+        const [groupsResponse, roomsResponse, professorsResponse] = await Promise.all([
+          adminService.getGroupCount(),
+          adminService.getRoomCount(),
+          adminService.getProfessorCount()
+        ])
+        
+        // Update the data with fetched values
+        currentData.value.groups = groupsResponse.data.count || 0
+        currentData.value.rooms = roomsResponse.data.count || 0
+        currentData.value.professors = professorsResponse.data.count || 0
+      } catch (error) {
+        console.error('Error fetching data counts:', error)
+        store.dispatch('notifications/showNotification', {
+          severity: 'error',
+          summary: 'Eroare',
+          detail: 'Nu s-au putut încărca datele actuale.',
+          life: 3000
+        })
+      }
+    }
     
     // Loading state for other operations
     const loading = ref({
@@ -242,7 +213,7 @@ export default defineComponent({
         // For group leaders we'll look for a specific name
         let searchName = null
         if (templateType === 'group-leaders') {
-          searchName = 'SG_upload' // Specific name for group leader template
+          searchName = 'template_SG' // Specific name for group leader template
         }
         
         // Get templates of the specified type using the service
@@ -477,7 +448,7 @@ export default defineComponent({
         }
         
         // Refresh counters
-        await refreshData()
+        await loadCurrentDataCounts()
         
         store.dispatch('notifications/showNotification', {
           severity: 'success',
@@ -504,38 +475,10 @@ export default defineComponent({
       }
     }
     
-    // Refresh current data summary
-    const refreshData = async () => {
-      try {
-        loading.value.refreshData = true
-        
-        // In a real implementation, this would fetch the current data counts
-        // For example:
-        // const response = await dataService.getCounts()
-        // currentData.value = response.data
-        
-        // Mock timeout to simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        
-        // Random variation for demonstration
-        currentData.value = {
-          groups: 21,
-          rooms: 38,
-          professors: 47
-        }
-      } catch (error) {
-        console.error('Error refreshing data:', error)
-        
-        store.dispatch('notifications/showNotification', {
-          severity: 'error',
-          summary: 'Eroare Actualizare',
-          detail: 'Nu s-au putut actualiza contoarele de date.',
-          life: 3000
-        })
-      } finally {
-        loading.value.refreshData = false
-      }
-    }
+    // Load data counts when component is mounted
+    onMounted(async () => {
+      await loadCurrentDataCounts()
+    })
     
     // Helper functions
     const getStatusClass = (status) => {
@@ -549,11 +492,6 @@ export default defineComponent({
       return success ? 'pi pi-check-circle text-success' : 'pi pi-times-circle text-danger'
     }
     
-    // Initialize
-    onMounted(() => {
-      refreshData()
-    })
-    
     return {
       uploads,
       syncStatus,
@@ -565,7 +503,6 @@ export default defineComponent({
       uploadGroupLeaders,
       uploadRooms,
       syncData,
-      refreshData,
       getStatusClass,
       getSyncIconClass
     }

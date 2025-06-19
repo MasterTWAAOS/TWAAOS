@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 from fastapi import APIRouter, Depends, HTTPException, status
 from dependency_injector.wiring import inject, Provide
 
@@ -7,6 +7,19 @@ from services.abstract.room_service_interface import IRoomService
 from config.containers import Container
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
+
+@router.get("/count", response_model=Dict[str, int], summary="Get room count", description="Retrieve the total count of rooms in the system")
+@inject
+async def get_room_count(
+    service: IRoomService = Depends(Provide[Container.room_service])
+):
+    """Get the total count of rooms.
+    
+    Returns:
+        Dict[str, int]: A dictionary containing the count of rooms
+    """
+    count = await service.get_room_count()
+    return {"count": count}
 
 @router.get("", response_model=List[RoomResponse], summary="Get all rooms", description="Retrieve a list of all rooms in the system")
 @inject

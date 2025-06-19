@@ -42,6 +42,15 @@ class IUserService(ABC):
         pass
         
     @abstractmethod
+    async def get_professor_count(self) -> int:
+        """Get the total count of users with CD role.
+        
+        Returns:
+            int: The total number of professors (users with CD role)
+        """
+        pass
+        
+    @abstractmethod
     async def search_users(self, first_name: Optional[str] = None, last_name: Optional[str] = None, role: Optional[str] = None) -> List[UserResponse]:
         """Search for users by name and role.
         

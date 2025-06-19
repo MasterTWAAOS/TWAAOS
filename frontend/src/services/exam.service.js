@@ -102,6 +102,15 @@ class ExamService {
       }
     })
   }
+
+  /**
+   * Get assistants for a specific exam
+   * @param {number} examId - Exam ID
+   * @returns {Promise} API Response with assistant data
+   */
+  getExamAssistants(examId) {
+    return apiClient.get(`/exams/${examId}/assistants`)
+  }
 }
 
 export default new ExamService()

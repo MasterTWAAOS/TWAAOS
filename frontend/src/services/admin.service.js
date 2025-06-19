@@ -35,6 +35,30 @@ class AdminService {
   syncData() {
     return apiClient.post('/sync/data')
   }
+  
+  /**
+   * Get count of groups
+   * @returns {Promise} API Response with count
+   */
+  getGroupCount() {
+    return apiClient.get('/groups/count')
+  }
+  
+  /**
+   * Get count of rooms
+   * @returns {Promise} API Response with count
+   */
+  getRoomCount() {
+    return apiClient.get('/rooms/count')
+  }
+  
+  /**
+   * Get count of professors (users with CD role)
+   * @returns {Promise} API Response with count
+   */
+  getProfessorCount() {
+    return apiClient.get('/users/count/professors')
+  }
 
   /**
    * Dismiss system alert

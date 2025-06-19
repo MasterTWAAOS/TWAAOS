@@ -55,9 +55,15 @@
                 </template>
               </Column>
               
-              <Column field="room.name" header="Sala" :sortable="true">
+              <Column field="roomNames" header="Săli" :sortable="true">
                 <template #body="slotProps">
-                  {{ slotProps.data.room.name }}
+                  <div v-if="Array.isArray(slotProps.data.roomNames) && slotProps.data.roomNames.length > 0">
+                    {{ slotProps.data.roomNames.join(', ') }}
+                  </div>
+                  <div v-else-if="slotProps.data.room && slotProps.data.room.name">
+                    {{ slotProps.data.room.name }}
+                  </div>
+                  <div v-else>-</div>
                 </template>
               </Column>
               
@@ -70,14 +76,9 @@
                 </template>
               </Column>
               
-              <Column field="studyProgram" header="Program studiu" :sortable="true">
-                <template #body="slotProps">
-                  {{ slotProps.data.studyProgram }}
-                </template>
-                <template #filter="{ filterModel, filterCallback }">
-                  <InputText v-model="filterModel.value" @input="filterCallback()" placeholder="Căutare..." class="p-column-filter" />
-                </template>
-              </Column>
+              <!-- Assistants column removed as requested -->
+              
+              <!-- Program studiu column removed as requested -->
               
               <Column field="studyYear" header="An" :sortable="true">
                 <template #body="slotProps">
@@ -85,7 +86,7 @@
                 </template>
               </Column>
               
-              <Column field="groups" header="Grupe">
+              <Column field="groupNames" header="Grupe" :sortable="true">
                 <template #body="slotProps">
                   <div class="groups-chips">
                     <Chip 
@@ -196,150 +197,7 @@
             </div>
           </TabPanel>
           
-          <TabPanel header="Creare Examen">
-            <div class="create-exam-form">
-              <h2>Adăugare Examen Nou</h2>
-              
-              <div class="p-fluid p-formgrid p-grid">
-                <div class="p-field p-col-12 p-md-6">
-                  <label for="subject">Disciplina <span class="required-field">*</span></label>
-                  <Dropdown 
-                    id="subject" 
-                    v-model="examForm.subject" 
-                    :options="subjectOptions" 
-                    optionLabel="name"
-                    placeholder="Selectați disciplina"
-                    :class="{'p-invalid': submitted && !examForm.subject}"
-                  />
-                  <small class="p-error" v-if="submitted && !examForm.subject">Disciplina este obligatorie</small>
-                </div>
-                
-                <div class="p-field p-col-12 p-md-6">
-                  <label for="groups">Grupe <span class="required-field">*</span></label>
-                  <MultiSelect 
-                    id="groups" 
-                    v-model="examForm.groups" 
-                    :options="groupOptions" 
-                    optionLabel="name"
-                    placeholder="Selectați grupele"
-                    display="chip"
-                    :class="{'p-invalid': submitted && !examForm.groups.length}"
-                  />
-                  <small class="p-error" v-if="submitted && !examForm.groups.length">Cel puțin o grupă este obligatorie</small>
-                </div>
-                
-                <div class="p-field p-col-12 p-md-4">
-                  <label for="date">Data <span class="required-field">*</span></label>
-                  <Calendar 
-                    id="date" 
-                    v-model="examForm.date" 
-                    dateFormat="dd/mm/yy"
-                    :showIcon="true"
-                    placeholder="Selectați data"
-                    :class="{'p-invalid': submitted && !examForm.date}"
-                  />
-                  <small class="p-error" v-if="submitted && !examForm.date">Data este obligatorie</small>
-                </div>
-                
-                <div class="p-field p-col-12 p-md-4">
-                  <label for="startTime">Ora de începere <span class="required-field">*</span></label>
-                  <Dropdown 
-                    id="startTime" 
-                    v-model="examForm.startTime" 
-                    :options="timeOptions" 
-                    optionLabel="label"
-                    optionValue="value"
-                    placeholder="Selectați ora"
-                    :class="{'p-invalid': submitted && !examForm.startTime}"
-                  />
-                  <small class="p-error" v-if="submitted && !examForm.startTime">Ora de începere este obligatorie</small>
-                </div>
-                
-                <div class="p-field p-col-12 p-md-4">
-                  <label for="duration">Durata (ore) <span class="required-field">*</span></label>
-                  <Dropdown 
-                    id="duration" 
-                    v-model="examForm.duration" 
-                    :options="durationOptions" 
-                    optionLabel="label"
-                    optionValue="value"
-                    placeholder="Selectați durata"
-                    :class="{'p-invalid': submitted && !examForm.duration}"
-                  />
-                  <small class="p-error" v-if="submitted && !examForm.duration">Durata este obligatorie</small>
-                </div>
-                
-                <div class="p-field p-col-12 p-md-6">
-                  <label for="room">Sala <span class="required-field">*</span></label>
-                  <Dropdown 
-                    id="room" 
-                    v-model="examForm.room" 
-                    :options="roomOptions" 
-                    optionLabel="name"
-                    optionValue="id"
-                    placeholder="Selectați sala"
-                    :class="{'p-invalid': submitted && !examForm.room}"
-                  />
-                  <small class="p-error" v-if="submitted && !examForm.room">Sala este obligatorie</small>
-                </div>
-                
-                <div class="p-field p-col-12 p-md-6">
-                  <label for="professor">Cadru Didactic <span class="required-field">*</span></label>
-                  <Dropdown 
-                    id="professor" 
-                    v-model="examForm.professor" 
-                    :options="professorOptions" 
-                    optionLabel="name"
-                    optionValue="id"
-                    placeholder="Selectați cadrul didactic"
-                    :class="{'p-invalid': submitted && !examForm.professor}"
-                  />
-                  <small class="p-error" v-if="submitted && !examForm.professor">Cadrul didactic este obligatoriu</small>
-                </div>
-                
-                <div class="p-field p-col-12">
-                  <label for="notes">Observații</label>
-                  <Textarea 
-                    id="notes" 
-                    v-model="examForm.notes" 
-                    rows="3" 
-                    placeholder="Adăugați detalii sau observații despre examen"
-                  />
-                </div>
-                
-                <div class="p-field p-col-12">
-                  <label for="message">Mesaj de la Cadrul Didactic</label>
-                  <Textarea 
-                    id="message" 
-                    v-model="examForm.message" 
-                    rows="3" 
-                    placeholder="Mesaj de la cadrul didactic cu preferințe pentru programare"
-                    :maxlength="200"
-                    disabled
-                  />
-                  <small v-if="examForm.message" class="p-text-secondary">Acest mesaj a fost adăugat de către cadrul didactic cu preferințe pentru programarea examenului.</small>
-                </div>
-                
-                <div class="p-col-12">
-                  <div class="p-d-flex p-jc-end">
-                    <Button 
-                      label="Resetare" 
-                      icon="pi pi-undo" 
-                      class="p-button-text p-mr-2" 
-                      @click="resetForm"
-                      :disabled="loading"
-                    />
-                    <Button 
-                      label="Salvare" 
-                      icon="pi pi-save" 
-                      @click="saveExam"
-                      :loading="loading"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </TabPanel>
+          <!-- Creare Examen tab removed as requested -->
         </TabView>
       </template>
     </Card>
@@ -408,7 +266,7 @@
           </div>
           
           <div class="p-field p-col-12 p-md-6">
-            <label for="edit-room">Sala <span class="required-field">*</span></label>
+            <label for="edit-room">Sălile <span class="required-field">*</span></label>
             <Dropdown 
               id="edit-room" 
               v-model="editDialog.exam.room" 
@@ -443,18 +301,7 @@
             />
           </div>
           
-          <div class="p-field p-col-12">
-            <label for="edit-message">Mesaj de la Cadrul Didactic</label>
-            <Textarea 
-              id="edit-message" 
-              v-model="editDialog.exam.message" 
-              rows="3" 
-              placeholder="Mesaj de la cadrul didactic cu preferințe pentru programare"
-              :maxlength="200"
-              disabled
-            />
-            <small v-if="editDialog.exam.message" class="p-text-secondary">Acest mesaj a fost adăugat de către cadrul didactic cu preferințe pentru programarea examenului.</small>
-          </div>
+          <!-- Mesaj de la Cadrul Didactic section removed as requested -->
         </div>
       </div>
       
@@ -559,7 +406,6 @@ export default {
     Dropdown,
     MultiSelect,
     Calendar,
-    Textarea,
     Dialog,
     Tag,
     Chip,
@@ -1000,15 +846,28 @@ export default {
       // Process startTime to ensure correct format
       let startTime;
       if (exam.startTime) {
-        // First check if it's a full object
+        // First check if it's a full object with value property
         if (typeof exam.startTime === 'object' && exam.startTime !== null && exam.startTime.value) {
           startTime = exam.startTime;
         } 
+        // If it's already a dropdown option object
+        else if (typeof exam.startTime === 'object' && exam.startTime !== null && ('label' in exam.startTime)) {
+          startTime = exam.startTime;
+        }
         // Then check if it's a string and find matching option
         else if (typeof exam.startTime === 'string') {
           console.log('Finding time option for:', exam.startTime);
           console.log('Available time options:', timeOptions.value);
-          const timeOption = timeOptions.value.find(t => t.value === exam.startTime || t.label === exam.startTime);
+          // First try exact match on value
+          let timeOption = timeOptions.value.find(t => t.value === exam.startTime);
+          // Then try exact match on label
+          if (!timeOption) {
+            timeOption = timeOptions.value.find(t => t.label === exam.startTime);
+          }
+          // Then try partial match
+          if (!timeOption) {
+            timeOption = timeOptions.value.find(t => t.value.includes(exam.startTime) || exam.startTime.includes(t.value));
+          }
           startTime = timeOption || timeOptions.value[0];
         } 
         // Fallback
@@ -1025,7 +884,15 @@ export default {
       console.log('Finding room match. Room data:', exam.room);
       console.log('Available roomOptions:', roomOptions.value);
       
-      if (typeof exam.room === 'object' && exam.room !== null) {
+      // First try to use roomNames if available
+      if (exam.roomNames && Array.isArray(exam.roomNames) && exam.roomNames.length > 0) {
+        // Get the first room name and try to find a matching room
+        const primaryRoomName = exam.roomNames[0];
+        roomObject = roomOptions.value.find(r => r.name === primaryRoomName);
+      }
+      
+      // If not found by roomNames, try the room object
+      if (!roomObject && typeof exam.room === 'object' && exam.room !== null) {
         // Try to find by id first
         if (exam.room.id) {
           roomObject = roomOptions.value.find(r => r.id === exam.room.id);
@@ -1040,12 +907,17 @@ export default {
         }
       } 
       // Try by room ID if available
-      else if (exam.roomId) {
+      if (!roomObject && exam.roomId) {
         roomObject = roomOptions.value.find(r => r.id === exam.roomId);
       }
       // Try by room name if no ID
-      else if (exam.roomName) {
+      if (!roomObject && exam.roomName) {
         roomObject = roomOptions.value.find(r => r.name === exam.roomName);
+      }
+      
+      // If still no match found, use the first available room
+      if (!roomObject && roomOptions.value && roomOptions.value.length > 0) {
+        roomObject = roomOptions.value[0];
       }
       
       console.log('Selected roomObject:', roomObject);
@@ -1070,12 +942,17 @@ export default {
         }
       }
       // Try by teacher ID if available 
-      else if (exam.teacherId) {
+      if (!professorObject && exam.teacherId) {
         professorObject = professorOptions.value.find(p => p.id === exam.teacherId);
       }
       // Try by teacher name if no ID
-      else if (exam.teacherName) {
+      if (!professorObject && exam.teacherName) {
         professorObject = professorOptions.value.find(p => p.name === exam.teacherName);
+      }
+      
+      // If still no match found, use the first available professor
+      if (!professorObject && professorOptions.value && professorOptions.value.length > 0) {
+        professorObject = professorOptions.value[0];
       }
       
       console.log('Selected professorObject:', professorObject);
@@ -1121,22 +998,33 @@ export default {
       // Ensure status is in the standardized English format
       let statusValue;
       if (exam.status) {
-        const normalizedStatus = exam.status.toLowerCase();
-        if (normalizedStatus.includes('approved') || normalizedStatus.includes('scheduled') || normalizedStatus.includes('programat')) {
-          statusValue = 'approved';
-        } else if (normalizedStatus.includes('pending') || normalizedStatus.includes('asteptare')) {
-          statusValue = 'pending';
-        } else if (normalizedStatus.includes('rejected') || normalizedStatus.includes('canceled') || normalizedStatus.includes('anulat') || normalizedStatus.includes('respins')) {
-          statusValue = 'rejected';
-        } else if (normalizedStatus.includes('proposed') || normalizedStatus.includes('propus')) {
-          statusValue = 'proposed';
+        // If status is already a dropdown option object
+        if (typeof exam.status === 'object' && exam.status !== null && exam.status.value) {
+          statusValue = exam.status.value;
         } else {
-          // Default to proposed if status is unknown
-          statusValue = 'proposed';
+          // Try to normalize string status
+          const normalizedStatus = typeof exam.status === 'string' ? exam.status.toLowerCase() : 'pending';
+          
+          if (normalizedStatus.includes('approved') || normalizedStatus.includes('scheduled') || normalizedStatus.includes('programat')) {
+            statusValue = 'approved';
+          } else if (normalizedStatus.includes('pending') || normalizedStatus.includes('asteptare')) {
+            statusValue = 'pending';
+          } else if (normalizedStatus.includes('rejected') || normalizedStatus.includes('canceled') || normalizedStatus.includes('anulat') || normalizedStatus.includes('respins')) {
+            statusValue = 'rejected';
+          } else if (normalizedStatus.includes('proposed') || normalizedStatus.includes('propus')) {
+            statusValue = 'proposed';
+          } else {
+            // Default to pending if status is unknown
+            statusValue = 'pending';
+          }
         }
       } else {
-        statusValue = 'proposed';
+        statusValue = 'pending';
       }
+      
+      // Find the matching status option
+      const statusOption = statusOptions.value.find(s => s.value === statusValue);
+      console.log('Selected status:', statusValue, 'Matched option:', statusOption);
       
       // Create complete exam object for edit dialog
       editDialog.exam = { 
@@ -1151,6 +1039,8 @@ export default {
         status: statusValue,
         notes: exam.notes || ''
       };
+      
+      console.log('Edit dialog populated with:', editDialog.exam);
       
       console.log('Processed exam data for edit:', editDialog.exam);
       editDialog.visible = true;
@@ -1333,7 +1223,16 @@ export default {
                   exam.startTime : 
                   `${exam.startTime?.hour?.toString().padStart(2, '0') || '00'}:${exam.startTime?.minute?.toString().padStart(2, '0') || '00'}`)
           
-          return {
+          // Process room names from API if available
+          const roomNames = [];
+          if (exam.roomNames && Array.isArray(exam.roomNames) && exam.roomNames.length > 0) {
+            roomNames.push(...exam.roomNames);
+          } else if (room && room.name && room.name !== 'Nesetat') {
+            roomNames.push(room.name);
+          }
+
+          // Prepare a formatted exam object with all needed properties
+          const formattedExam = {
             id: exam.id,
             subject: subject,
             // For simplicity, we're currently showing only the primary group
@@ -1343,13 +1242,32 @@ export default {
             startTime: startTime,
             duration: exam.duration,
             room: room,
+            roomNames: roomNames,
             professor: professor,
             notes: exam.notes || '',
             status: exam.status || 'Nepregătit',
             // Additional fields from Excel export
             studyProgram: exam.specializationShortName,
-            studyYear: exam.studyYear
+            studyYear: exam.studyYear,
+            // Assistant-related properties
+            assistantsLoaded: false,
+            loadingAssistants: false,
+            assistantNames: [],
+            assistantIds: exam.assistantIds || []
+          };
+          
+          // Create groupNames field for proper sorting
+          formattedExam.groupNames = '';
+          if (formattedExam.groups && Array.isArray(formattedExam.groups)) {
+            const groupNames = formattedExam.groups.map(g => g.name).filter(name => !!name);
+            if (groupNames.length > 0) {
+              formattedExam.groupNames = groupNames.join(', ');
+            }
+          } else if (exam.groupName) {
+            formattedExam.groupNames = exam.groupName;
           }
+          
+          return formattedExam
         })
         
         store.dispatch('notifications/showNotification', {
@@ -1422,6 +1340,39 @@ export default {
       }
     }
     
+    // Load assistants for a specific exam
+    const loadExamAssistants = async (exam) => {
+      if (!exam || exam.assistantsLoaded || exam.loadingAssistants) return;
+      
+      exam.loadingAssistants = true;
+      try {
+        // Call the API to get assistants for this exam
+        const response = await examService.getExamAssistants(exam.id);
+        
+        // Parse assistant names
+        if (response && Array.isArray(response.data)) {
+          exam.assistantNames = response.data.map(assistant => 
+            assistant.name || `${assistant.firstName || ''} ${assistant.lastName || ''}`.trim()
+          ).filter(name => name);
+        } else if (exam.assistantIds && Array.isArray(exam.assistantIds)) {
+          // Fallback if the API call doesn't work as expected
+          exam.assistantNames = exam.assistantIds.map(id => {
+            const assistant = professorOptions.value.find(p => p.id === id);
+            return assistant ? assistant.name : `Assistant ${id}`;
+          });
+        } else {
+          exam.assistantNames = [];
+        }
+        
+        exam.assistantsLoaded = true;
+      } catch (error) {
+        console.error(`Error loading assistants for exam ${exam.id}:`, error);
+        exam.assistantNames = [];
+      } finally {
+        exam.loadingAssistants = false;
+      }
+    };
+    
     // Load groups data
     const loadGroups = async () => {
       try {
@@ -1482,6 +1433,7 @@ export default {
       cancelEdit,
       updateExam,
       confirmDeleteExam,
+      loadExamAssistants,
       rooms,
       loadingRooms,
       generatingRoomExcel,

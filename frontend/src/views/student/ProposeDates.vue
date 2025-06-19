@@ -1,6 +1,6 @@
 <template>
   <div class="propose-dates">
-    <h1>Propunere Date Examene</h1>
+    <h1>Dashboard</h1>
     
     <div class="p-grid">
       <!-- Subjects pending proposals -->

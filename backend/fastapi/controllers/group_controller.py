@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
+from typing import List, Dict
 from dependency_injector.wiring import inject, Provide
 
 from models.DTOs.group_dto import GroupCreate, GroupUpdate, GroupResponse
@@ -7,6 +7,19 @@ from services.abstract.group_service_interface import IGroupService
 from config.containers import Container
 
 router = APIRouter(prefix="/groups", tags=["groups"])
+
+@router.get("/count", response_model=Dict[str, int], summary="Get group count", description="Retrieve the total count of groups in the system")
+@inject
+async def get_group_count(
+    service: IGroupService = Depends(Provide[Container.group_service])
+):
+    """Get the total count of groups.
+    
+    Returns:
+        Dict[str, int]: A dictionary containing the count of groups
+    """
+    count = await service.get_group_count()
+    return {"count": count}
 
 @router.get("", response_model=List[GroupResponse], summary="Get all groups", description="Retrieve a list of all groups in the system")
 @inject
