@@ -36,6 +36,15 @@ class ExamService {
   getByProfessor(professorId) {
     return apiClient.get(`/exams/professor/${professorId}`)
   }
+  
+  /**
+   * Get dashboard data for a professor/teacher
+   * @param {number} professorId - Professor ID
+   * @returns {Promise} API Response with dashboard data including stats and upcoming exams
+   */
+  getTeacherDashboard(professorId) {
+    return apiClient.get(`/exams/teacher/${professorId}/dashboard`)
+  }
 
   /**
    * Propose a new exam date (student group leader)

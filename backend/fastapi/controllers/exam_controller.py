@@ -154,6 +154,84 @@ async def update_exam(
             detail=f"Error updating exam: {str(e)}"
         )
 
+@router.get("/teacher/{teacher_id}/dashboard", summary="Get teacher dashboard data", description="Returns aggregated data for the teacher dashboard including upcoming exams, pending exams, and proposals")
+@inject
+async def get_teacher_dashboard_data(
+    teacher_id: int,
+    service: IExamService = Depends(Provide[Container.exam_service])
+):
+    """Get dashboard data for a teacher including exams by status and various stats.
+    
+    Args:
+        teacher_id (int): ID of the teacher
+        
+    Returns:
+        Dict: Dashboard data including:
+            - scheduledExams: List of approved exams
+            - pendingExams: List of pending exams (no proposal yet)
+            - pendingProposals: List of exams with 'proposed' status
+            - nextExam: The next upcoming exam if any
+            - stats: Various statistics (total subjects, exams by status)
+    """
+    print(f"[DEBUG] ExamController - get_teacher_dashboard_data for teacher: {teacher_id}")
+    try:
+        # Get all exams for this teacher
+        exams = await service.get_exams_by_teacher_id(teacher_id)
+        print(f"[DEBUG] ExamController - Retrieved {len(exams)} exams for teacher {teacher_id}")
+        
+        # Categorize exams by status
+        scheduled_exams = [exam for exam in exams if exam.status.lower() == 'approved']
+        pending_exams = [exam for exam in exams if exam.status.lower() == 'pending']
+        pending_proposals = [exam for exam in exams if exam.status.lower() == 'proposed']
+        rejected_exams = [exam for exam in exams if exam.status.lower() == 'rejected']
+        
+        # Basic stats
+        total_subjects = len({exam.subjectId for exam in exams})
+        
+        # Find next exam (first upcoming approved exam)
+        from datetime import datetime
+        today = datetime.now().date()
+        
+        upcoming_exams = []
+        next_exam = None
+        
+        for exam in scheduled_exams:
+            exam_date = datetime.fromisoformat(exam.date.replace('Z', '+00:00')) if isinstance(exam.date, str) else exam.date
+            if exam_date.date() >= today:
+                upcoming_exams.append(exam)
+        
+        # Sort by date
+        upcoming_exams.sort(key=lambda x: x.date if isinstance(x.date, str) else x.date.isoformat())
+        
+        if upcoming_exams:
+            next_exam = upcoming_exams[0]
+        
+        print(f"[DEBUG] ExamController - Returning dashboard data for teacher {teacher_id} with "
+              f"{len(scheduled_exams)} scheduled exams, {len(pending_exams)} pending exams, "
+              f"{len(pending_proposals)} pending proposals, and {len(rejected_exams)} rejected exams")
+              
+        # Return aggregated dashboard data
+        return {
+            "scheduledExams": scheduled_exams,
+            "pendingExams": pending_exams,
+            "pendingProposals": pending_proposals,
+            "rejectedExams": rejected_exams,
+            "nextExam": next_exam,
+            "stats": {
+                "totalSubjects": total_subjects,
+                "scheduledExams": len(scheduled_exams),
+                "pendingExams": len(pending_exams),
+                "pendingProposals": len(pending_proposals),
+                "rejectedExams": len(rejected_exams)
+            }
+        }
+    except Exception as e:
+        print(f"[DEBUG] ExamController - Error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving dashboard data: {str(e)}"
+        )
+        
 @router.post("/propose", response_model=ExamResponse, status_code=status.HTTP_201_CREATED, summary="Propose exam date", description="Student Group Leaders (SG) propose exam dates for their group")
 @inject
 async def propose_exam_date(

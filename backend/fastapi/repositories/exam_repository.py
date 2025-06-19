@@ -110,18 +110,28 @@ class ExamRepository(IExamRepository):
                 room_ids = schedule.get_room_ids()  # Use helper method from Schedule model
                 room_id = None
                 room_name = None
+                room_names = []
                 
-                # For backward compatibility, we'll use the first room ID if available
+                # Fetch all room names for the roomIds
                 if room_ids and len(room_ids) > 0:
-                    # Get the first room ID and fetch the room
+                    # For backward compatibility, we'll use the first room ID
                     first_room_id = room_ids[0]
-                    room_query = select(Room).where(Room.id == first_room_id)
-                    room_result = await self.db.execute(room_query)
-                    room = room_result.scalar_one_or_none()
                     
-                    if room:
-                        room_id = room.id
-                        room_name = room.name
+                    # Get all rooms in a single query
+                    room_query = select(Room).where(Room.id.in_(room_ids))
+                    room_result = await self.db.execute(room_query)
+                    rooms = room_result.scalars().all()
+                    
+                    # Create a mapping of room_id to room_name
+                    room_mapping = {room.id: room.name for room in rooms}
+                    
+                    # Set room names based on the mapping
+                    room_names = [room_mapping.get(rid, f"Unknown Room {rid}") for rid in room_ids]
+                    
+                    # For backward compatibility
+                    if first_room_id in room_mapping:
+                        room_id = first_room_id
+                        room_name = room_mapping[first_room_id]
                 
                 # Handle nullable start and end times
                 duration = None
@@ -149,7 +159,8 @@ class ExamRepository(IExamRepository):
                     "teacherEmail": teacher.email,
                     "teacherPhone": teacher.phone,
                     "roomIds": schedule.get_room_ids(),  # New field with full list of room IDs
-                    "roomId": room_id,        # Keep for backward compatibility (first room or null)
+                    "roomNames": room_names,    # New field with list of room names
+                    "roomId": room_id,         # Keep for backward compatibility (first room or null)
                     "roomName": room_name,     # Keep for backward compatibility (first room name or null)
                     "date": schedule.date,     # Nullable
                     "startTime": schedule.startTime, # Nullable
