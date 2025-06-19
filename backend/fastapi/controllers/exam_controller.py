@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Path, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Path, Body, Response
 from dependency_injector.wiring import inject, Provide
 from typing import List, Dict, Any
 
@@ -276,4 +276,62 @@ async def propose_exam_date(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating exam proposal: {str(e)}"
+        )
+
+@router.get("/export/pdf", summary="Export exams to PDF", description="Export the list of all exams in PDF format")
+@inject
+async def export_exams_to_pdf(
+    service: IExamService = Depends(Provide[Container.exam_service])
+):
+    """Export the list of all exams to PDF format.
+    
+    Returns:
+        Response: PDF file as binary response
+    """
+    print("[DEBUG] ExamController - export_exams_to_pdf: Request received")
+    try:
+        pdf_data = await service.export_exams_to_pdf()
+        print("[DEBUG] ExamController - PDF generated successfully")
+        
+        return Response(
+            content=pdf_data,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": "attachment; filename=programare-examene.pdf"
+            }
+        )
+    except Exception as e:
+        print(f"[DEBUG] ExamController - Error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating PDF export: {str(e)}"
+        )
+
+@router.get("/export/xlsx", summary="Export exams to Excel", description="Export the list of all exams in Excel format")
+@inject
+async def export_exams_to_excel(
+    service: IExamService = Depends(Provide[Container.exam_service])
+):
+    """Export the list of all exams to Excel format.
+    
+    Returns:
+        Response: Excel file as binary response
+    """
+    print("[DEBUG] ExamController - export_exams_to_excel: Request received")
+    try:
+        excel_data = await service.export_exams_to_excel()
+        print("[DEBUG] ExamController - Excel file generated successfully")
+        
+        return Response(
+            content=excel_data,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": "attachment; filename=programare-examene.xlsx"
+            }
+        )
+    except Exception as e:
+        print(f"[DEBUG] ExamController - Error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating Excel export: {str(e)}"
         )

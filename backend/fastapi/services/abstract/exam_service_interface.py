@@ -74,3 +74,21 @@ class IExamService(ABC):
             ExamResponse: Created exam proposal with details
         """
         pass
+        
+    @abstractmethod
+    async def export_exams_to_pdf(self) -> bytes:
+        """Export the list of all exams to PDF format
+        
+        Returns:
+            bytes: PDF file content as bytes
+        """
+        pass
+        
+    @abstractmethod
+    async def export_exams_to_excel(self) -> bytes:
+        """Export the list of all exams to Excel format
+        
+        Returns:
+            bytes: Excel file content as bytes
+        """
+        pass

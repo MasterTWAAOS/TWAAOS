@@ -597,3 +597,353 @@ class ExamService(IExamService):
         # For now, we'll accept any date (placeholder implementation)
         # TODO: In the future, implement actual date range validation
         return True
+        
+    async def export_exams_to_pdf(self) -> bytes:
+        """Export the list of all exams to PDF format
+        
+        Returns:
+            bytes: PDF file content as bytes
+        """
+        import io
+        import os
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch, mm
+        from reportlab.lib.enums import TA_CENTER
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.pdfgen.canvas import Canvas
+        from reportlab.lib.fonts import addMapping
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+        
+        logger.info("[DEBUG] ExamService - Generating PDF export of exams")
+        
+        try:
+            # Get all exams
+            exams = await self.get_all_exams()
+            
+            # Create in-memory buffer for PDF output
+            buffer = io.BytesIO()
+            
+            # Set up page with proper margins to ensure all columns fit
+            pagesize = landscape(A4)
+            margin = 10 * mm  # 10mm margins
+            
+            # Register fonts with good Unicode support for Romanian diacritics
+            # First try to use DejaVuSans which has excellent Unicode support
+            # If not available, fall back to built-in fonts
+            try:
+                from reportlab.pdfbase.pdfmetrics import registerFontFamily
+                pdfmetrics.registerFont(UnicodeCIDFont('Helvetica'))
+                pdfmetrics.registerFont(UnicodeCIDFont('Times-Roman'))
+            except Exception:
+                logger.warning("Could not register optimal fonts for diacritics, using fallback")
+                
+            # Register a specific encoding for common Romanian characters
+            from reportlab.lib.fonts import addMapping
+            from reportlab.pdfbase import pdfmetrics, ttfonts
+            
+            # Try to use system font for Romanian characters if available
+            try:
+                import sys, os
+                arial_path = None
+                if sys.platform.startswith('win'):
+                    # Windows font paths
+                    arial_path = 'C:\\Windows\\Fonts\\arial.ttf'
+                elif sys.platform.startswith('linux'):
+                    # Linux font paths, try common locations
+                    potential_paths = [
+                        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                        '/usr/share/fonts/TTF/DejaVuSans.ttf',
+                        '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf'
+                    ]
+                    for path in potential_paths:
+                        if os.path.exists(path):
+                            arial_path = path
+                            break
+                
+                if arial_path and os.path.exists(arial_path):
+                    # Register the font with a name that we'll use
+                    pdfmetrics.registerFont(ttfonts.TTFont('Romanian', arial_path))
+                    
+                    # Use this font for our reports
+                    default_font = 'Romanian'
+                else:
+                    # Fall back to builtin
+                    default_font = 'Helvetica'
+            except Exception:
+                logger.warning("Could not register TTF font for diacritics, using fallback")
+                default_font = 'Helvetica'
+            
+            # Create the PDF document with specified margins
+            doc = SimpleDocTemplate(
+                buffer, 
+                pagesize=pagesize,
+                leftMargin=margin,
+                rightMargin=margin,
+                topMargin=margin,
+                bottomMargin=margin
+            )
+            elements = []
+            
+            # Set up styles with proper font
+            styles = getSampleStyleSheet()
+            title_style = styles['Heading1']
+            title_style.alignment = TA_CENTER
+            title_style.fontName = default_font
+            
+            # Create custom styles for table text - use the Romanian font we registered if available
+            bold_font = f'{default_font}-Bold' if default_font == 'Helvetica' else default_font
+            
+            header_style = ParagraphStyle(
+                'HeaderStyle',
+                parent=styles['Normal'],
+                fontName=bold_font,
+                fontSize=9,
+                alignment=TA_CENTER
+            )
+            
+            cell_style = ParagraphStyle(
+                'CellStyle',
+                parent=styles['Normal'],
+                fontName=default_font,
+                fontSize=8,
+                alignment=TA_CENTER
+            )
+            
+            # Add title with proper Romanian text
+            elements.append(Paragraph("Programare Examene", title_style))
+            elements.append(Spacer(1, 10))
+            
+            # Define column headers with proper Romanian diacritics
+            header_texts = [
+                "ID", "Data", "Început", "Sfârșit", "Grupă", "Spec.", "An", 
+                "Disciplină", "Profesor", "Săli", "Status"
+            ]
+            
+            headers = [Paragraph(h, header_style) for h in header_texts]
+            
+            # Create table data with headers
+            data = [headers]
+            
+            # Add exam data to table
+            for exam in exams:
+                # Handle date format correctly - could be date object or string
+                if exam.date:
+                    if hasattr(exam.date, 'strftime'):
+                        exam_date = exam.date.strftime('%d-%m-%Y')
+                    else:
+                        # It's already a string
+                        try:
+                            from datetime import datetime
+                            # Try to parse the date string
+                            parsed_date = datetime.fromisoformat(exam.date.replace('Z', '+00:00'))
+                            exam_date = parsed_date.strftime('%d-%m-%Y')
+                        except Exception:
+                            # If parsing fails, use as is
+                            exam_date = str(exam.date)
+                else:
+                    exam_date = 'N/A'
+                
+                # Handle time objects or strings properly
+                if exam.startTime:
+                    if hasattr(exam.startTime, 'strftime'):
+                        start_time = exam.startTime.strftime('%H:%M')
+                    else:
+                        # Convert any other type to string
+                        start_time = str(exam.startTime)
+                else:
+                    start_time = 'N/A'
+                    
+                if exam.endTime:
+                    if hasattr(exam.endTime, 'strftime'):
+                        end_time = exam.endTime.strftime('%H:%M')
+                    else:
+                        # Convert any other type to string
+                        end_time = str(exam.endTime)
+                else:
+                    end_time = 'N/A'
+                    
+                room_names = ", ".join(str(room) for room in exam.roomNames) if exam.roomNames else 'N/A'
+                
+                # Truncate long text fields to ensure they fit
+                subject_name = exam.subjectName or ''
+                if len(subject_name) > 25:
+                    subject_name = subject_name[:22] + '...'
+                
+                teacher_name = exam.teacherName or ''
+                if len(teacher_name) > 20:
+                    teacher_name = teacher_name[:17] + '...'
+                
+                if len(room_names) > 15:
+                    room_names = room_names[:12] + '...'
+                
+                group_name = exam.groupName or ''
+                spec_name = exam.specializationShortName or ''
+                status = exam.status or ''
+                study_year = str(exam.studyYear) if exam.studyYear is not None else 'N/A'
+                
+                # Ensure all values are properly converted to strings before creating Paragraph objects
+                safe_str = lambda val: str(val) if val is not None else 'N/A'
+                
+                # Convert all cell data to Paragraph objects with proper font
+                row_data = [
+                    Paragraph(safe_str(exam.id), cell_style),
+                    Paragraph(safe_str(exam_date), cell_style),
+                    Paragraph(safe_str(start_time), cell_style),
+                    Paragraph(safe_str(end_time), cell_style),
+                    Paragraph(safe_str(group_name), cell_style),
+                    Paragraph(safe_str(spec_name), cell_style),
+                    Paragraph(safe_str(study_year), cell_style),
+                    Paragraph(safe_str(subject_name), cell_style),
+                    Paragraph(safe_str(teacher_name), cell_style),
+                    Paragraph(safe_str(room_names), cell_style),
+                    Paragraph(safe_str(status), cell_style)
+                ]
+                
+                # Add row to data
+                data.append(row_data)
+            
+            # Calculate column widths to fit page width
+            available_width = pagesize[0] - 2*margin
+            col_widths = [
+                available_width * 0.04,  # ID - 4%
+                available_width * 0.09,  # Data - 9%
+                available_width * 0.07,  # Inceput - 7%
+                available_width * 0.07,  # Sfarsit - 7%
+                available_width * 0.08,  # Grupa - 8%
+                available_width * 0.07,  # Spec - 7%
+                available_width * 0.03,  # An - 3%
+                available_width * 0.20,  # Disciplina - 20%
+                available_width * 0.17,  # Profesor - 17%
+                available_width * 0.10,  # Sali - 10%
+                available_width * 0.08   # Status - 8%
+            ]
+            
+            # Calculate row heights (give extra space for rows with Paragraphs)
+            row_heights = [20] + [16] * (len(data) - 1)  # Header row taller
+            
+            # Create table with specific column widths and row heights
+            table = Table(data, repeatRows=1, colWidths=col_widths, rowHeights=row_heights)
+            
+            # Style the table - note that font settings are now in the Paragraph objects
+            # Added special styling with alternating row colors for better readability
+            table_style = [
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                ('TOPPADDING', (0, 0), (-1, 0), 6),
+                ('LEFTPADDING', (0, 0), (-1, -1), 2),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]
+            
+            # Add alternating row colors for better readability
+            for i in range(1, len(data)):
+                if i % 2 == 0:
+                    table_style.append(('BACKGROUND', (0, i), (-1, i), colors.beige))
+                else:
+                    table_style.append(('BACKGROUND', (0, i), (-1, i), colors.whitesmoke))
+                    
+            table.setStyle(TableStyle(table_style))
+            
+            elements.append(table)
+            
+            # Add metadata to PDF for better file properties
+            pdf_metadata = {
+                'title': 'Programare Examene',
+                'subject': 'Raport examene programate',
+                'creator': 'TWAAOS Exam Management System'
+            }
+            
+            # Build PDF document with metadata
+            doc.build(elements, onFirstPage=lambda canvas, doc: canvas.setFont(default_font, 10))
+            
+            # Get PDF data
+            pdf_data = buffer.getvalue()
+            buffer.close()
+            
+            return pdf_data
+            
+        except Exception as e:
+            logger.error(f"[ERROR] ExamService - Failed to generate PDF: {str(e)}")
+            # Log more detailed information for debugging
+            import traceback
+            logger.error(f"[ERROR] PDF Generation traceback: {traceback.format_exc()}")
+            raise
+        
+    async def export_exams_to_excel(self) -> bytes:
+        """Export the list of all exams to Excel format
+        
+        Returns:
+            bytes: Excel file content as bytes
+        """
+        import io
+        import pandas as pd
+        
+        logger.info("[DEBUG] ExamService - Generating Excel export of exams")
+        
+        try:
+            # Get all exams
+            exams = await self.get_all_exams()
+            
+            # Convert to dictionary for pandas
+            exam_data = []
+            for exam in exams:
+                # Handle date format correctly - could be date object or string
+                if exam.date:
+                    if hasattr(exam.date, 'strftime'):
+                        exam_date = exam.date.strftime('%d-%m-%Y')
+                    else:
+                        # It's already a string
+                        try:
+                            from datetime import datetime
+                            # Try to parse the date string
+                            parsed_date = datetime.fromisoformat(exam.date.replace('Z', '+00:00'))
+                            exam_date = parsed_date.strftime('%d-%m-%Y')
+                        except Exception:
+                            # If parsing fails, use as is
+                            exam_date = exam.date
+                else:
+                    exam_date = 'N/A'
+                
+                exam_data.append({
+                    'ID': exam.id,
+                    'Data': exam_date,
+                    'Ora Începere': exam.startTime,
+                    'Ora Terminare': exam.endTime,
+                    'Grupă': exam.groupName,
+                    'Specializare': exam.specializationShortName,
+                    'An': exam.studyYear,
+                    'Disciplină': exam.subjectName,
+                    'Profesor': exam.teacherName,
+                    'Săli': ", ".join(exam.roomNames) if exam.roomNames else 'N/A',
+                    'Status': exam.status
+                })
+            
+            # Create pandas DataFrame
+            df = pd.DataFrame(exam_data)
+            
+            # Create Excel file in memory
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name='Programare Examene', index=False)
+                
+                # Auto-adjust columns' width
+                worksheet = writer.sheets['Programare Examene']
+                for i, col in enumerate(df.columns):
+                    column_width = max(df[col].astype(str).map(len).max(), len(col) + 2)
+                    worksheet.column_dimensions[chr(65 + i)].width = column_width
+            
+            excel_data = output.getvalue()
+            output.close()
+            
+            return excel_data
+            
+        except Exception as e:
+            logger.error(f"[ERROR] ExamService - Failed to generate Excel: {str(e)}")
+            raise

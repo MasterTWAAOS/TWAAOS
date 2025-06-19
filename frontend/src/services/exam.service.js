@@ -111,6 +111,22 @@ class ExamService {
   getExamAssistants(examId) {
     return apiClient.get(`/exams/${examId}/assistants`)
   }
+
+  /**
+   * Export exams list in the specified format (PDF or Excel)
+   * @param {string} format - Export format ('pdf' or 'xlsx')
+   * @returns {Promise} API Response with file as blob
+   */
+  exportExams(format) {
+    const contentType = format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    
+    return apiClient.get(`/exams/export/${format}`, {
+      responseType: 'blob',
+      headers: {
+        'Accept': contentType
+      }
+    })
+  }
 }
 
 export default new ExamService()
