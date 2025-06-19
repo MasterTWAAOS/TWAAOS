@@ -204,5 +204,6 @@ class Container(containers.DeclarativeContainer):
         notification_service=notification_service,
         user_service=user_service,
         subject_service=subject_service,
-        config_service=config_service
+        config_service=config_service,
+        room_service=room_service
     )

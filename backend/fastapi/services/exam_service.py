@@ -27,7 +27,8 @@ class ExamService(IExamService):
         notification_service: Optional[INotificationService] = None,
         user_service: Optional[IUserService] = None,
         subject_service: Optional[ISubjectService] = None,
-        config_service: Optional[IConfigService] = None
+        config_service: Optional[IConfigService] = None,
+        room_service = None  # IRoomService - not strictly typed to avoid circular imports
     ):
         """Initialize with required repositories and services"""
         self.exam_repository = exam_repository
@@ -37,6 +38,7 @@ class ExamService(IExamService):
         self.user_service = user_service
         self.subject_service = subject_service
         self.config_service = config_service
+        self.room_service = room_service  # For resolving room names from IDs
         
     # Helper method to preprocess exam data before validation
     def _preprocess_exam_data(self, exam_data: Dict) -> Dict:
@@ -86,16 +88,67 @@ class ExamService(IExamService):
         date_value = schedule.date
         if isinstance(date_value, date):
             date_value = date_value.isoformat()
-            
+        
+        # Initialize base exam data
         exam_data = {
             "id": schedule.id,
             "date": date_value,
             "startTime": schedule.startTime,
             "endTime": schedule.endTime,
-            "roomId": schedule.roomId,
             "status": schedule.status,
             "message": schedule.message
         }
+        
+        # Handle room data - properly handle both roomIds (array) and roomId (legacy single value)
+        if hasattr(schedule, 'roomIds') and schedule.roomIds:
+            # Use the roomIds array (the new, correct format)
+            logger.info(f"[DEBUG] ExamService - Schedule {schedule.id} has roomIds: {schedule.roomIds}")
+            exam_data["roomIds"] = schedule.roomIds
+            
+            # For backward compatibility, set roomId to first room if available
+            if schedule.roomIds and len(schedule.roomIds) > 0:
+                exam_data["roomId"] = schedule.roomIds[0]
+            else:
+                exam_data["roomId"] = None
+                
+            # Get room names if possible
+            if hasattr(self, 'room_service') and self.room_service:
+                room_names = []
+                for room_id in schedule.roomIds:
+                    try:
+                        room = await self.room_service.get_room_by_id(room_id)
+                        if room:
+                            room_names.append(room.name)
+                    except Exception as e:
+                        logger.error(f"[DEBUG] ExamService - Error getting room name for ID {room_id}: {str(e)}")
+                
+                if room_names:
+                    exam_data["roomNames"] = room_names
+                    # For backward compatibility
+                    exam_data["roomName"] = ", ".join(room_names)
+        elif hasattr(schedule, 'roomId') and schedule.roomId:
+            # Legacy format - single roomId
+            logger.info(f"[DEBUG] ExamService - Schedule {schedule.id} has single roomId: {schedule.roomId}")
+            exam_data["roomId"] = schedule.roomId
+            # Create roomIds array with single item for new format
+            exam_data["roomIds"] = [schedule.roomId]
+            
+            # Get room name if possible
+            if hasattr(self, 'room_service') and self.room_service:
+                try:
+                    room = await self.room_service.get_room_by_id(schedule.roomId)
+                    if room:
+                        exam_data["roomName"] = room.name
+                        exam_data["roomNames"] = [room.name]
+                except Exception as e:
+                    logger.error(f"[DEBUG] ExamService - Error getting room name for ID {schedule.roomId}: {str(e)}")
+        else:
+            # No room information
+            logger.warning(f"[DEBUG] ExamService - Schedule {schedule.id} has no room information")
+            exam_data["roomId"] = None
+            exam_data["roomIds"] = []
+            exam_data["roomName"] = ""
+            exam_data["roomNames"] = []
         
         # Get subject details
         if self.subject_service:

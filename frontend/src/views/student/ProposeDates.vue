@@ -661,6 +661,18 @@ export default {
         const mappedSubjects = pendingData.map(subject => {
           console.log('Subject data:', subject); // Debug: Log the full subject object
           
+          // Get status from any available source and normalize it
+          let status = 'pending';
+          if (subject.examStatus) {
+            status = subject.examStatus.toLowerCase();
+          } else if (subject.approvalStatus) {
+            status = subject.approvalStatus.toLowerCase();
+          } else if (subject.status) {
+            status = subject.status.toLowerCase();
+          }
+          
+          console.log(`Subject ${subject.id} (${subject.name}) determined status: ${status}`)
+          
           return {
             id: subject.id,
             name: subject.name,
@@ -669,21 +681,23 @@ export default {
             professorName: subject.professorName, // Add both fields to ensure compatibility
             professorId: subject.professorId || subject.teacherId,
             semester: subject.semester ? `Semestrul ${subject.semester}` : '',
-            // If the subject has an exam status, use it, otherwise treat as pending
-            status: subject.examStatus?.toLowerCase() || 'pending',
+            // Use the normalized status
+            status: status,
             // Add debug info
             needsProposal: subject.needsProposal || true
           };
         });
         
-        // Filter to only include subjects with pending status, not rejected ones
-        // This ensures subjects with rejected exams don't appear in this list
-        // They will still be visible in the "Propunerile Mele" section
-        pendingSubjects.value = mappedSubjects.filter(subject => 
-          subject.status !== 'rejected'
-        );
+        // Strictly filter to only include subjects with pending status
+        // This ensures only truly pending subjects appear in "Discipline fara data de examen propusa" section
+        // Both rejected and other statuses will be excluded
+        pendingSubjects.value = mappedSubjects.filter(subject => {
+          console.log(`Filtering subject ${subject.id} with status: ${subject.status}`);
+          // Only include if status is exactly 'pending'
+          return subject.status === 'pending';
+        });
         
-        console.log('Filtered pending subjects (excluding rejected):', pendingSubjects.value);
+        console.log('Filtered pending subjects (strictly pending only):', pendingSubjects.value);
       } catch (error) {
         console.error('Error loading subjects:', error)
         
@@ -723,6 +737,41 @@ export default {
         
         // Call the API to get my proposals
         const response = await examService.getByGroup(groupId)
+        console.log('Raw proposals data from backend:', response.data)
+        
+        // Collect all room IDs from proposals for batch loading
+        const allRoomIds = new Set()
+        response.data.forEach(proposal => {
+          // Check for both formats: roomIds as array or roomId as single value
+          if (proposal.roomIds && Array.isArray(proposal.roomIds)) {
+            proposal.roomIds.forEach(id => allRoomIds.add(id))
+            console.log(`Proposal ${proposal.id} has multiple rooms:`, proposal.roomIds)
+          } else if (proposal.roomId) {
+            allRoomIds.add(proposal.roomId)
+            console.log(`Proposal ${proposal.id} has single room:`, proposal.roomId)
+          } else {
+            console.log(`Proposal ${proposal.id} has no rooms defined`)
+          }
+        })
+        
+        console.log('All room IDs to load for proposals:', Array.from(allRoomIds))
+
+        // Load room details if not already in cache
+        await Promise.all(Array.from(allRoomIds).map(async roomId => {
+          if (!roomsCache.value[roomId]) {
+            try {
+              const response = await RoomService.getById(roomId)
+              roomsCache.value[roomId] = response.data
+              console.log(`Loaded room data for ID ${roomId}:`, response.data)
+            } catch (err) {
+              console.error(`Error loading room ${roomId}:`, err)
+              // Create a placeholder for failed loads
+              roomsCache.value[roomId] = { id: roomId, name: `Sala ${roomId}` }
+            }
+          } else {
+            console.log(`Using cached room data for ID ${roomId}:`, roomsCache.value[roomId])
+          }
+        }))
         
         // Process the response data
         myProposals.value = response.data.map(proposal => {
@@ -760,6 +809,30 @@ export default {
           // Debug logging to see what data we're getting
           console.log(`Proposal ${proposal.id} date:`, proposal.date, typeof proposal.date);
           
+          // Handle different possible room data formats from backend
+          let roomsArray = [];
+          
+          if (proposal.roomIds && Array.isArray(proposal.roomIds)) {
+            // If roomIds is already an array of IDs, use it
+            roomsArray = proposal.roomIds;
+            console.log(`Proposal ${proposal.id} has multiple rooms:`, roomsArray);
+          } else if (proposal.roomId) {
+            // If there's a single roomId, make it an array
+            roomsArray = [proposal.roomId];
+            console.log(`Proposal ${proposal.id} has single room:`, proposal.roomId);
+          } else {
+            console.log(`Proposal ${proposal.id} has no rooms defined`);
+          }
+          
+          // Create room objects with names from the cache (similar to upcomingExams)
+          const roomsWithNames = roomsArray.map(id => {
+            if (roomsCache.value[id]) {
+              return { id, name: roomsCache.value[id].name }
+            } else {
+              return { id, name: `Sala ${id}` } // Fallback
+            }
+          });
+          
           // Map the proposal data to our format
           return {
             id: proposal.id,
@@ -774,7 +847,10 @@ export default {
             rejectionReason: proposal.rejectionReason,
             professorName: proposal.teacherName || proposal.professorName,
             subjectId: proposal.subjectId,
-            professorId: proposal.teacherId || proposal.professorId
+            professorId: proposal.teacherId || proposal.professorId,
+            // Add the processed room information
+            roomIds: roomsWithNames,
+            room: proposal.roomName || ''
           };
         });
         

@@ -109,7 +109,7 @@ async def get_pending_subjects_by_group(
             status_lower = exam.status.lower() if hasattr(exam, 'status') and exam.status else ''
             # Only exclude subjects with proposals that are proposed or approved
             # We want to INCLUDE subjects with pending exams in the list of subjects that need proposals
-            if status_lower in ['proposed', 'approved']:
+            if status_lower in ['proposed', 'approved', 'rejected']:
                 # This is likely a proposed exam for this subject
                 subjects_with_proposals_by_this_group.add(exam.subjectId)
     
