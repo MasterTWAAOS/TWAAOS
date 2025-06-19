@@ -56,24 +56,49 @@ Sistemul informatic pentru planificarea examenelor și colocviilor are ca scop a
 - Configurarea aplicației
 - Actualizarea credențialelor de acces
 
-## Quick Start
+## Instalare și Configurare
 
-Clonare repository și setare aplicație în Docker:
+### Cerințe Preliminare
+- Docker instalat pe mașină
+- Acces la internet pentru descărcarea dependențelor
+
+### Pași de Instalare
+
+1. **Clonare Repository**
 
 ```bash
-git clone https://github.com/fiesc/exam-scheduling.git
+git clone https://github.com/MasterTWAAOS/TWAAOS.git
 cd exam-scheduling
-docker-compose up -d
 ```
 
-Accesează aplicația în browser la: http://localhost:8080
+2. **Construirea și Pornirea Containerelor Docker**
 
-## Documentație
+```bash
+docker-compose up --build
+```
 
-Pentru mai multe detalii, accesează:
+3. **Configurarea Bazei de Date**
 
-- [Instalare și configurare](./INSTALLATION.md)
-- [Ghid de dezvoltare](./DEVELOPMENT.md)
-- [Documentație API](./API_DOCUMENTATION.md)
-- [Ghid utilizare](./USER_GUIDE.md)
-- [Arhitectură sistem](./ARCHITECTURE.md)
+```bash
+docker-compose exec db psql -U postgres -c "DROP DATABASE twaaos WITH (FORCE);"
+docker-compose exec db psql -U postgres -c "CREATE DATABASE twaaos;"
+```
+
+4. **Gestionarea Migrațiilor**
+
+```bash
+# Ștergeți toate migrațiile existente
+docker-compose exec api rm -rf migrations/versions/*
+
+# Generați o migrație nouă bazată pe modelele curente
+docker-compose exec api alembic revision --autogenerate -m "Create complete database schema"
+
+# Rulați migrația pentru a crea toate tabelele
+docker-compose exec api alembic upgrade head
+```
+
+5. **Sincronizarea Datelor**
+   - Accesați interfața Swagger a aplicației: http://localhost:8000/docs
+   - Executați endpoint-ul `/sync/data` pentru a sincroniza datele necesare
+
+După finalizarea acestor pași, aplicația ar trebui să fie complet funcțională și accesibilă în browser la adresa: http://localhost:8080
