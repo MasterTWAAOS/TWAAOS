@@ -65,7 +65,6 @@
             <div style="display: none;">{{ console.log('[Date Debug]', slotProps.data) }}</div>
             <div class="proposed-date">
               <div class="date">{{ formatDate(slotProps.data.proposedDate || slotProps.data.date || slotProps.data.examDate) }}</div>
-              <div class="time">{{ formatTime(slotProps.data.proposedTimeStart || slotProps.data.startTime) }} - {{ formatTime(slotProps.data.proposedTimeEnd || slotProps.data.endTime) }}</div>
             </div>
           </template>
         </Column>
@@ -465,10 +464,10 @@ export default {
           const searchTerm = filters.search.toLowerCase()
           const subject = subjectsCache.value[proposal.subject.id]
           
-          // Only search in subject shortName (subject code)
-          const subjectShortName = subject?.shortName?.toLowerCase() || ''
+          // Only search in subject code (stored as "code" in the subjectsCache)
+          const subjectCode = subject?.code?.toLowerCase() || ''
           
-          if (!subjectShortName.includes(searchTerm)) {
+          if (!subjectCode.includes(searchTerm)) {
             return false
           }
         }
