@@ -1,0 +1,221 @@
+# MANUAL DE UTILIZARE - SISTEM DE PLANIFICARE EXAMENE TWAAOS
+
+Acest manual oferă instrucțiuni detaliate pentru utilizarea aplicației TWAAOS de către diferite roluri de utilizatori: Secretariat (SEC), Șef Grupă (SG) și Cadru Didactic (CD).
+
+## CUPRINS
+1. Introducere
+2. Autentificare în aplicație
+3. Rolul: Secretariat (SEC)
+4. Rolul: Șef Grupă (SG)
+5. Rolul: Cadru Didactic (CD)
+6. Fluxul complet al aplicației
+7. Notificări și comunicare
+8. Soluționarea problemelor frecvente
+
+## 1. INTRODUCERE
+
+Aplicația TWAAOS (Sistemul de Planificare Examene FIESC) este un sistem informatic proiectat pentru a gestiona planificarea examenelor și colocviilor pentru toate programele de studii din cadrul Facultății de Inginerie Electrică și Știința Calculatoarelor (FIESC).
+
+Pentru instalarea și configurarea inițială a aplicației, consultați fișierul README.md din directorul principal al proiectului.
+
+## 2. AUTENTIFICARE ÎN APLICAȚIE
+
+### Acces la aplicație
+- Deschideți browserul web și navigați la adresa: http://localhost:8080
+- Opțional, autentificarea se poate face prin contul Google (Sign In With Google)
+- Fiecare utilizator are un rol specific în sistem, care determină funcționalitățile disponibile
+
+### Prima autentificare
+- La prima autentificare, este posibil să vi se solicite schimbarea parolei temporare
+- Dacă întâmpinați probleme la autentificare, contactați administratorul sistemului
+
+## 3. ROLUL: SECRETARIAT (SEC)
+
+Utilizatorul cu rol de Secretariat (SEC) are responsabilitatea de a configura sistemul și de a gestiona datele generale ale examenelor.
+
+### 3.1. Configurarea perioadei de examene
+
+1. După autentificare, accesați secțiunea "Configurare Perioade" din meniul principal
+2. Apăsați butonul "Adăugare Perioadă Nouă"
+3. Selectați intervalul calendaristic pentru perioada de examene folosind selectorul de date
+4. Confirmați prin apăsarea butonului "Salvare"
+5. Perioada configurată va deveni vizibilă pentru toți utilizatorii, iar șefii de grupă vor fi notificați automat prin email
+
+[Aici se va insera o imagine cu interfața de configurare a perioadelor]
+
+### 3.2. Importul șefilor de grupă
+
+1. Accesați secțiunea "Încărcare Date" din meniul principal
+2. Descărcați template-ul Excel pentru șefii de grupă folosind butonul "Descarcă Template"
+3. Completați template-ul cu informațiile necesare:
+   - Nume și prenume șef de grupă
+   - Email
+   - Grupă și specializare
+   - An de studiu
+4. Salvați fișierul Excel completat pe calculatorul dumneavoastră
+5. Încărcați fișierul completat folosind butonul "Încarcă Șefi de Grupă"
+6. Confirmați încărcarea și așteptați mesajul de confirmare a procesării
+
+### 3.3. Gestionarea examenelor
+
+1. Accesați secțiunea "Gestionare Examene" din meniul principal
+2. Aici puteți vizualiza toate examenele programate, cu diferite filtre disponibile:
+   - După status (propuse, aprobate, respinse)
+   - După grupă sau specializare
+   - După disciplină sau cadru didactic
+3. Pentru a edita un examen, apăsați pe iconița de editare (creion) din dreptul examenului
+4. Puteți modifica data, sala, ora de începere și de sfârșit, asistenții sau statusul examenului
+5. Confirmați modificările prin apăsarea butonului "Salvează Modificările"
+
+### 3.4. Exportul rapoartelor
+
+1. Accesați secțiunea "Descărcare Rapoarte" din meniul principal
+2. Selectați formatul dorit pentru raport (PDF sau Excel)
+3. Opțional, puteți filtra examenele care doriți să apară în raport:
+   - După perioadă
+   - După grupă/specializare
+   - După status
+4. Apăsați butonul "Generează Raport" pentru a crea raportul
+5. Descărcați raportul generat folosind butonul "Descarcă" care va apărea
+
+## 4. ROLUL: ȘEF GRUPĂ (SG)
+
+Utilizatorul cu rol de Șef Grupă (SG) reprezintă studenții unei grupe și are responsabilitatea de a propune date pentru examene.
+
+### 4.1. Vizualizare discipline și propunere date
+
+1. După autentificare, veți fi direcționat către dashboard-ul șefului de grupă
+2. Veți vedea lista disciplinelor pentru care trebuie să propuneți date de examen
+3. Pentru fiecare disciplină fără dată de examen propusă, apăsați butonul "Stabilește data"
+4. În dialogul care se deschide:
+   - Selectați data propusă pentru examen (trebuie să fie în perioada de examene configurată)
+   - Opțional, adăugați un comentariu sau observații
+5. Confirmați propunerea prin apăsarea butonului "Trimite Propunerea"
+
+[Aici se va insera o imagine cu interfața de propunere a datelor]
+
+### 4.2. Urmărirea statusului propunerilor
+
+1. În dashboard-ul șefului de grupă, puteți vizualiza status-ul tuturor propunerilor făcute
+2. Sunt disponibile statistici și indicatori vizuali pentru:
+   - Propuneri în așteptare
+   - Propuneri acceptate
+   - Propuneri respinse
+3. Pentru a vedea detalii despre o propunere, apăsați pe rândul corespunzător din tabel
+4. Dacă o propunere a fost respinsă, veți putea vedea motivul respingerii și puteți face o nouă propunere
+
+### 4.3. Retrimiterea propunerilor respinse
+
+1. Pentru o propunere respinsă, apăsați butonul "Propune din nou"
+2. În dialogul care se deschide, veți vedea motivul respingerii propunerii anterioare
+3. Selectați o nouă dată pentru examen, ținând cont de feedback-ul primit
+4. Confirmați noua propunere prin apăsarea butonului "Trimite Propunerea"
+
+## 5. ROLUL: CADRU DIDACTIC (CD)
+
+Utilizatorul cu rol de Cadru Didactic (CD) este responsabil pentru validarea propunerilor de examene și stabilirea detaliilor finale.
+
+### 5.1. Validarea propunerilor de examene
+
+1. După autentificare, veți fi direcționat către dashboard-ul cadrului didactic
+2. Accesați secțiunea "Validare Propuneri" din meniul principal
+3. Veți vedea lista propunerilor de examene care așteaptă aprobarea dumneavoastră
+4. Pentru fiecare propunere, aveți două opțiuni principale:
+   - Apăsați butonul verde (bifă) pentru a aproba propunerea
+   - Apăsați butonul roșu (x) pentru a respinge propunerea
+
+[Aici se va insera o imagine cu interfața de validare a propunerilor]
+
+### 5.2. Aprobarea unei propuneri
+
+1. După apăsarea butonului de aprobare, se va deschide un dialog cu detalii suplimentare
+2. Completați următoarele informații:
+   - Sala/sălile de examen (selectați din lista disponibilă)
+   - Ora de începere și de sfârșit a examenului
+   - Asistenții pentru examen (dacă este cazul)
+   - Observații suplimentare (opțional)
+3. Confirmați aprobarea prin apăsarea butonului "Confirmă Aprobarea"
+4. Șeful de grupă va fi notificat automat prin email despre aprobarea propunerii
+
+### 5.3. Respingerea unei propuneri
+
+1. După apăsarea butonului de respingere, se va deschide un dialog de confirmare
+2. Introduceți motivul respingerii în câmpul dedicat (acest motiv va fi trimis șefului de grupă)
+3. Confirmați respingerea prin apăsarea butonului "Confirmă Respingerea"
+4. Șeful de grupă va fi notificat automat prin email despre respingerea propunerii și motivul acesteia
+
+### 5.4. Vizualizarea examenelor programate
+
+1. Accesați secțiunea "Examene Programate" din meniul principal
+2. Aici puteți vizualiza toate examenele aprobate pentru disciplinele la care sunteți titular
+3. Datele sunt organizate cronologic și pot fi filtrate după grupă sau specializare
+
+## 6. FLUXUL COMPLET AL APLICAȚIEI
+
+Fluxul de lucru standard în aplicația TWAAOS urmează următorii pași:
+
+1. **Configurare inițială a aplicației** conform instrucțiunilor din README.md
+   
+2. **Secretariatul (SEC) configurează perioada de examene**
+   - Stabilește intervalul pentru sesiunea de examene
+   - Sistemul notifică automat toți șefii de grupă prin email
+   
+3. **Șeful de grupă (SG) propune datele pentru examene**
+   - Pentru fiecare disciplină, propune o dată în perioada configurată
+   - După trimiterea propunerii, cadrul didactic titular este notificat automat prin email
+   
+4. **Cadrul didactic (CD) validează propunerile**
+   - Poate aproba propunerea, stabilind sălile, intervalul orar și asistenții
+   - Poate respinge propunerea, specificând motivul respingerii
+   - Șeful de grupă este notificat automat prin email despre decizie
+   
+5. **În cazul aprobării**:
+   - Examenul este marcat ca "Aprobat" și devine vizibil în planificări
+   - Șeful de grupă nu mai poate modifica data propusă
+   
+6. **În cazul respingerii**:
+   - Examenul este marcat ca "Respins" cu motivul asociat
+   - Șeful de grupă poate propune o nouă dată, ținând cont de feedback-ul primit
+   
+7. **Secretariatul (SEC) poate genera rapoarte**
+   - Exportă planificarea examenelor în format PDF sau Excel
+   - Poate edita manual detaliile examenelor dacă este necesar
+
+## 7. NOTIFICĂRI ȘI COMUNICARE
+
+Sistemul TWAAOS utilizează notificări email pentru a asigura comunicarea eficientă între toți participanții:
+
+### 7.1. Notificări pentru Șefi de Grupă (SG)
+- **Configurare perioadă examene**: Când Secretariatul configurează perioada de examene
+- **Aprobare propunere**: Când un cadru didactic aprobă o propunere de examen
+- **Respingere propunere**: Când un cadru didactic respinge o propunere, incluzând motivul respingerii
+
+### 7.2. Notificări pentru Cadre Didactice (CD)
+- **Propunere nouă**: Când un șef de grupă propune o dată pentru un examen
+- **Modificări în planificare**: Când Secretariatul face modificări la un examen deja programat
+
+### 7.3. Notificări pentru Secretariat (SEC)
+- **Examene programate**: Rezumat periodic al examenelor programate și statusul acestora
+
+## 8. SOLUȚIONAREA PROBLEMELOR FRECVENTE
+
+### 8.1. Probleme de autentificare
+- Verificați dacă ați introdus corect datele de autentificare
+- Resetați parola folosind opțiunea "Am uitat parola"
+- Contactați administratorul sistemului pentru asistență
+
+### 8.2. Probleme la propunerea datelor
+- Asigurați-vă că data propusă este în intervalul configuratpentru examene
+- Verificați dacă mai există alte examene programate în aceeași zi pentru aceeași grupă
+
+### 8.3. Probleme la validarea propunerilor
+- Asigurați-vă că sălile selectate sunt disponibile în intervalul orar specificat
+- Verificați dacă asistenții selectați nu au alte examene programate în același interval
+
+### 8.4. Probleme la generarea rapoartelor
+- Asigurați-vă că aveți permisiunile necesare pentru a accesa această funcționalitate
+- Încercați să filtrați datele pentru a reduce complexitatea raportului
+
+---
+
+Pentru întrebări suplimentare sau asistență tehnică, vă rugăm să contactați administratorul sistemului TWAAOS.
